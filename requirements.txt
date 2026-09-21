@@ -1,0 +1,35 @@
+moderngl==5.12.0
+numpy==2.5.2
+Pillow==12.3.0
+imageio-ffmpeg==0.6.0
+opencv-python-headless==5.0.0.93
+
+# Used for depth estimation (vfx_engine/depth.py - MASK_MODE = "depth",
+# PARTICLE_DEPTH_REALISM, ground_fx) and AI scene segmentation
+# (vfx_engine/segmentation.py - SEGMENTATION_ENABLED, ground_fx), both on
+# by default in config.py. torchvision is required by transformers'
+# SegFormer image processor (segmentation.py) even though nothing in this
+# project calls it directly. Install with:
+#   pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
+# (the extra index URL gets the much smaller CPU-only build - omit it if
+# you have an NVIDIA GPU and want CUDA acceleration instead)
+torch==2.13.0
+torchvision==0.28.0
+transformers==5.15.1
+
+# Used for the Marigold diffusion-based depth/normals/illumination models
+# (items 44/46/48/49, vfx_engine/depth.py DEPTH_MODE = "marigold",
+# vfx_engine/surface_normals.py, and vfx_engine/illumination.py) -
+# diffusers.MarigoldDepthPipeline / MarigoldNormalsPipeline / MarigoldIntrinsicsPipeline.
+diffusers==0.40.0
+
+# Without this, diffusers/transformers fall back to `low_cpu_mem_usage=False`
+# when loading the Marigold/SegFormer checkpoints above (a slow, memory-
+# doubling load path with a "Cannot initialize model with low cpu memory
+# usage because `accelerate` was not found" warning) - confirmed on this
+# project's 6GB-class GPU to measurably slow down model load/first-frame
+# setup.
+accelerate==1.14.0
+
+# Desktop GUI (vfx_gui.py)
+customtkinter

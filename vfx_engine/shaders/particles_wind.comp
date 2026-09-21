@@ -1,0 +1,235 @@
+// particles_wind.comp
+//
+// Compute shader that updates every particle's position and rotation for
+// one frame, entirely on the GPU - the position math never has to make a
+// round trip to the CPU. Used by particles.py when the GPU/driver supports
+// compute shaders (OpenGL 4.3+, see gpu.supports_compute()); on older
+// hardware particles.py falls back to an equivalent numpy implementation
+// of the exact same math (_cpu_dynamic_data) - the two MUST stay in sync.
+//
+// The wind effect uses "curl noise": the curl (rotated gradient) of a
+// smooth 2D noise field. Unlike a plain per-particle sine wobble, curl
+// noise is spatially coherent - particles that are near each other sample
+// a similar wind vector, so whole clusters of snow/rain sway together in
+// the same gust instead of each particle wobbling independently.
+//
+// Everything below is built to be exactly loop-safe by construction,
+// rather than relying on loop.py's crossfade to hide a seam:
+//   - each particle's fall speed is quantized so it covers an exact whole
+//     number of screen-heights over the loop's `num_frames`, so its
+//     vertical position at frame `num_frames` is bit-for-bit its position
+//     at frame 0.
+//   - the wind noise's time input is sampled around a circle (radius
+//     noise_loop_radius) parameterized by frame_i/num_frames, so the noise
+//     field itself returns to its exact starting value at the wrap point,
+//     instead of drifting linearly with elapsed time.
+//   - the speed "wobble" (approximating drag/gust response - see below)
+//     and the snow tumble wobble are both plain sinusoids of the same
+//     phase angle, so they integrate to a full period with no net offset.
+#version 430
+
+layout(local_size_x = 256) in;
+
+// Seeds are a FLAT float array (SEED_STRIDE floats per particle), not a
+// GLSL struct - std430's struct/array padding rules are implementation-
+// defined enough in practice (observed actual GPU behavior not matching
+// the tightly-packed layout Python uploads, silently corrupting later
+// fields for many particles) that a flat, manually-indexed array is the
+// only layout with no ambiguity: exactly 4 bytes per float, contiguous,
+// matching numpy's "f4" array byte-for-byte.
+//
+// Per particle: start_x, start_y, speed, phase, wind_scale, wander_loops
+//   wind_scale: per-particle wind sensitivity (smaller/lighter particles sway more)
+//   wander_loops: signed whole number of full screen-widths this particle
+//     drifts sideways over one loop (0 = none) - see particles.py's
+//     horizontal_wander. Without this, particles with no angle_slant tilt
+//     (e.g. snow) never actually travel horizontally - they only sway
+//     locally around their spawn X via curl noise - so any photo long
+//     enough to notice shows a static, uneven left-right density pattern
+//     baked in from the random spawn positions and never mixed away.
+//     Being a WHOLE number of widths keeps this exactly loop-safe, the
+//     same trick used for the vertical fall speed below.
+const uint SEED_STRIDE = 6u;
+
+layout(std430, binding = 0) readonly buffer SeedBuffer {
+    float seeds[];
+};
+
+// x, y, rotation packed per particle (flat floats, NOT vec3 - see the
+// seed-layout comment above: std430 pads a vec3 ARRAY element to 16 bytes,
+// but this buffer doubles as particles.glsl's per-instance vertex
+// attribute buffer, which needs it tightly packed at 12 bytes/instance -
+// a flat float array with manual indexing avoids that mismatch entirely).
+layout(std430, binding = 1) writeonly buffer DynamicBuffer {
+    float dynamic_data[];
+};
+
+uniform float frame_i;
+uniform float num_frames;     // total frames in the loop - see the loop-safety notes above
+uniform vec2 viewport_size;
+uniform float direction;      // 1.0 = falling down, -1.0 = rising up
+uniform float angle_slant;    // tan(angle_deg) - constant wind tilt (e.g. rain blown sideways)
+uniform float drift;          // curl-noise wind strength multiplier
+uniform float noise_scale;    // spatial scale of the wind field (smaller = broader gusts)
+uniform float noise_loop_radius;   // how much the wind noise varies over one loop (0 = static wind)
+uniform float speed_wobble;   // 0.0-1.0+, periodic speed variation approximating drag/gust response
+uniform float wobble_strength;   // 0.0-1.0+, extra tumble/rotation wobble (snow-flake-like), 0 = off
+
+// `drift` above used to
+// arrive CPU-pre-multiplied by one frame-global weather.gust_envelope()
+// value - now it's the RAW wind-strength multiplier, and this shader
+// computes each PARTICLE's own gust value via gust_at() below (using
+// that particle's own current screen position, so a gust reaches
+// particles on the downwind side of a wide frame later than ones on the
+// upwind side). Particles never use the elastic/damped-spring variant
+// (only vegetation.py's region_warp.glsl path does), so no amp/lag
+// uniforms are needed here - see vfx_engine/weather.py's
+// gust_shader_uniforms() docstring for the full formula this mirrors.
+uniform float gust_phase_offset;
+uniform float gust_cycles_a;
+uniform float gust_cycles_b;
+uniform float gust_strength;
+uniform float gust_spatial_delay;
+uniform vec2 gust_wind_bias;
+
+float hash(vec2 p) {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+}
+
+float value_noise(vec2 p) {
+    vec2 cell = floor(p);
+    vec2 f = fract(p);
+
+    float a = hash(cell);
+    float b = hash(cell + vec2(1.0, 0.0));
+    float c = hash(cell + vec2(0.0, 1.0));
+    float d = hash(cell + vec2(1.0, 1.0));
+
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
+}
+
+// Curl of the noise field via finite differences, rotated 90 degrees to
+// turn a scalar potential field into a divergence-free 2D vector field
+// (no sources/sinks - wind flows around, not into or out of, any point).
+vec2 curl(vec2 p) {
+    float eps = 0.05;
+    float n_up = value_noise(p + vec2(0.0, eps));
+    float n_down = value_noise(p - vec2(0.0, eps));
+    float n_right = value_noise(p + vec2(eps, 0.0));
+    float n_left = value_noise(p - vec2(eps, 0.0));
+
+    float dy = (n_up - n_down) / (2.0 * eps);
+    float dx = (n_right - n_left) / (2.0 * eps);
+    return vec2(dy, -dx);
+}
+
+// position-aware gust value, mirroring
+// vfx_engine.weather.gust_shader_uniforms()'s documented formula exactly
+// (see region_warp.glsl's/blur.glsl's identical function) - always the
+// plain (non-elastic) case here, amplitude=1/lag=0 hardcoded since
+// particles never use the elastic/damped-spring variant.
+float gust_at(vec2 position_uv) {
+    float distance_downwind = dot(position_uv - vec2(0.5), gust_wind_bias);
+    float phase_delay = -distance_downwind * gust_spatial_delay * 6.28318530718;
+    float gust_theta = 6.28318530718 * (frame_i / max(num_frames, 1.0)) + gust_phase_offset + phase_delay;
+    float wave = 0.6 * sin(gust_theta * gust_cycles_a) + 0.4 * sin(gust_theta * gust_cycles_b + 1.7);
+    return max(0.0, 1.0 + wave * gust_strength);
+}
+
+void main() {
+    uint i = gl_GlobalInvocationID.x;
+    uint particle_count = seeds.length() / SEED_STRIDE;
+    if (i >= particle_count) return;
+
+    uint base_index = i * SEED_STRIDE;
+    float seed_start_x = seeds[base_index + 0u];
+    float seed_start_y = seeds[base_index + 1u];
+    float seed_speed = seeds[base_index + 2u];
+    float seed_phase = seeds[base_index + 3u];
+    float seed_wind_scale = seeds[base_index + 4u];
+    float seed_wander_loops = seeds[base_index + 5u];
+
+    float theta = 6.28318530718 * (frame_i / num_frames);   // 0..2pi across exactly one loop
+
+    // Quantize this particle's fall speed so it covers a whole number of
+    // screen-heights over the loop - guarantees fallen(num_frames) is an
+    // exact multiple of viewport_size.y, i.e. the same position as frame 0.
+    float raw_loops = max(seed_speed * num_frames / viewport_size.y, 1.0);
+    float loops = floor(raw_loops + 0.5);
+    float effective_speed = loops * viewport_size.y / num_frames;
+
+    // Periodic speed modulation - a stand-in for real drag/gust-response
+    // acceleration (a true accelerating fall wouldn't be exactly
+    // periodic). This must be an ADDITIVE offset on top of the steady
+    // linear fall, not a multiplicative scale on the whole elapsed
+    // distance - sin(2*theta) takes the same value at theta=0 and
+    // theta=2pi, so the offset is identical at both ends of the loop and
+    // cancels out of fallen(num_frames) - fallen(0), leaving the
+    // quantized whole-screen-heights closure above completely intact.
+    float wobble_amplitude = speed_wobble * viewport_size.y * 0.03;
+    float fallen = direction * effective_speed * frame_i
+        + wobble_amplitude * sin(2.0 * theta + seed_phase);
+
+    // Net sideways wander (see the seed-layout comment above) - an exact
+    // whole number of screen-widths over the loop, so it closes exactly
+    // like the vertical fall does.
+    float wander_speed = seed_wander_loops * viewport_size.x / num_frames;
+    float base_x = mod(seed_start_x + fallen * angle_slant + wander_speed * frame_i, viewport_size.x);
+    float base_y = mod(seed_start_y + fallen, viewport_size.y);
+
+    // Wind noise sampled around a circle in time (radius noise_loop_radius)
+    // instead of along a straight timeline - this is what makes the wind
+    // field itself close the loop exactly, with no drift/seam.
+    vec2 noise_time = noise_loop_radius * vec2(cos(theta), sin(theta));
+    vec2 noise_pos = vec2(base_x, base_y) * noise_scale + vec2(seed_phase, 0.0) + noise_time;
+    // THIS particle's own gust value, from its own current
+    // screen position (base_x, base_y) - not one frame-global scalar
+    // shared by every particle regardless of where it is.
+    float gust = gust_at(vec2(base_x / viewport_size.x, base_y / viewport_size.y));
+    vec2 wind = curl(noise_pos) * drift * gust * 40.0 * seed_wind_scale;
+
+    float x = mod(base_x + wind.x, viewport_size.x);
+    float y = mod(base_y + wind.y, viewport_size.y);
+
+    // Real net velocity (screen space, y-down): the steady vertical fall
+    // (direction*effective_speed) plus wind's vertical push, and the
+    // steady angle_slant tilt speed plus wind's horizontal push - added
+    // as VECTOR COMPONENTS before taking the angle. This is the fix for
+    // the confirmed bug: the old code took atan2 of the
+    // wind vector ALONE, which is blind to how small that vector's
+    // magnitude is relative to the particle's real, dominant fall speed
+    // - curl noise's direction varies constantly even while its magnitude
+    // stays small, so particles ended up rotated to near-random angles.
+    // Combining as vectors first means a wind push that's small relative
+    // to the fall speed only nudges the angle slightly, exactly matching
+    // real wind-blown rain/snow.
+    float net_vertical = direction * effective_speed + wind.y;
+    float net_horizontal = angle_slant * effective_speed + wind.x;
+    // Argument order/sign matches this shader's rotation convention: with
+    // in_rotation = 0, particles.glsl's quad keeps its local y-axis (the
+    // un-rotated "fall" axis) pointing straight down, i.e. net_horizontal
+    // = 0. Rotating that axis by angle theta gives (-sin theta, cos
+    // theta), so theta = atan2(-net_horizontal, net_vertical) aligns it
+    // with (net_horizontal, net_vertical) - NOT atan2(vertical,
+    // horizontal), which would be off by 90 degrees for this convention.
+    float wind_rotation = atan(-net_horizontal, net_vertical);
+
+    // Tumble amplitude scaled by the LOCAL wind strength (reusing the
+    // same curl noise already sampled above) instead of being a purely
+    // independent per-particle sinusoid - particles sitting in the same
+    // gust (spatially coherent, since curl noise varies smoothly) now
+    // tumble more together and calm down together, rather than each one
+    // wobbling on its own schedule regardless of what the air around it
+    // is actually doing. A cheap way to get "particles react to gusts as
+    // a group" without a whole separate turbulence field.
+    float local_wind_mag = length(wind) / max(drift * 40.0 * 0.5, 0.001);
+    float tumble_coherence = clamp(local_wind_mag, 0.3, 1.8);
+    float tumble = wobble_strength * tumble_coherence * sin(3.0 * theta + seed_phase * 7.0);
+    float rotation = wind_rotation + tumble;
+
+    uint out_index = i * 3u;
+    dynamic_data[out_index + 0u] = x;
+    dynamic_data[out_index + 1u] = y;
+    dynamic_data[out_index + 2u] = rotation;
+}
