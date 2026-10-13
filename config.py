@@ -312,7 +312,7 @@ WATER_RIPPLE_STRENGTH = 0.5       # 0.0-1.0+, overall ripple amplitude - deliber
 # ---------------------------------------------------------------------------
 WEATHER_WIND_DIRECTION_DEG = 15.0   # degrees from horizontal (0 = due right, 90 = straight up) the prevailing wind blows
 
-# the design notes "Fixes to consider" #3: rain's droplet tilt (RAIN_PARAMS used to
+# the original design: rain's droplet tilt (RAIN_PARAMS used to
 # hardcode `angle=18` as an independent fixed value, disconnected from
 # WEATHER_WIND_DIRECTION_DEG above) is now computed by main.py's
 # resolve_rain_angle_deg() FROM the wind direction every other wind-driven
@@ -327,7 +327,7 @@ WEATHER_WIND_DIRECTION_DEG = 15.0   # degrees from horizontal (0 = due right, 90
 # whatever wind direction is actually configured, instead of coincidence.
 RAIN_WIND_ANGLE_MAX_DEG = 18.0
 
-# the design notes "Fixes to consider" #3's second half: for single-frame STATIC
+# the original design: for single-frame STATIC
 # image output (OUTPUT_MODE = "png", num_frames == 1) there is no
 # accompanying scene motion at all to back up a strongly wind-tilted rain
 # streak - vegetation isn't swaying, clouds aren't drifting, water isn't
@@ -341,7 +341,7 @@ RAIN_WIND_ANGLE_MAX_DEG = 18.0
 # 1.0 = no reduction, 0.0 = perfectly vertical rain in static images.
 RAIN_STATIC_IMAGE_ANGLE_SCALE = 0.4
 
-# the design notes "Fixes to consider" #4's decision: static PNG output (OUTPUT_MODE
+# the original design: static PNG output (OUTPUT_MODE
 # = "image"/"png"/etc, num_frames == 1) architecturally CANNOT show
 # wind-driven scene motion (render_vegetation_effects/render_cloud_effects/
 # render_water_effects in main.py all early-return [] when num_frames <= 1
@@ -381,7 +381,7 @@ WEATHER_GUST_STRENGTH = 0.35
 # would. Tuned so a 30s render reproduces the original (2, 3)-over-30s pacing.
 WEATHER_GUST_SECONDS_PER_CYCLE = (15.0, 10.0)
 
-# the design notes ("the gust is a single global scalar - no spatial
+# the original design ("the gust is a single global scalar - no spatial
 # propagation across the frame"): real wind gusts sweep across a
 # landscape over real time, not everywhere at once - a value here > 0.0
 # makes the gust reach positions further downwind slightly LATER (phase-
@@ -449,7 +449,7 @@ MASK_FEATHER = 15   # blur of the mask edge in pixels, for a soft transition (0 
 #       restrict the mask to only that AI-detected region - e.g.
 #       MASK_MODE = "depth" + MASK_SEGMENTATION_CATEGORY = "sky" gives
 #       "depth occlusion, but only within the detected sky region," one
-#       of the design notes own named examples. None (default) = no
+#       of the original design's own named examples. None (default) = no
 #       segmentation-based restriction.
 #   MASK_MANUAL_CORRECTION: when True, ALSO restrict the mask by a
 #       separate hand-drawn correction layer (masks/{photo}_correction.png,
@@ -458,7 +458,7 @@ MASK_FEATHER = 15   # blur of the mask edge in pixels, for a soft transition (0 
 #       own filename) - e.g. MASK_MODE = "depth" + MASK_MANUAL_CORRECTION
 #       = True gives "depth occlusion, with a hand-painted correction
 #       layered on top to fix a spot the automatic depth mask got
-#       wrong," the design notes other named example. False (default) = no
+#       wrong," the original design's other named example. False (default) = no
 #       manual correction layer.
 MASK_SEGMENTATION_CATEGORY = None
 MASK_MANUAL_CORRECTION = False
@@ -592,7 +592,7 @@ ENABLE_SURFACE_NORMALS = True
 # See vfx_engine/illumination.py's header comment for the full research
 # spike this was built from and the important caveat it documents.
 #
-# UNLIKE ENABLE_SURFACE_NORMALS above, this item's own the design notes text explicitly
+# UNLIKE ENABLE_SURFACE_NORMALS above, the original design's text for this item explicitly
 # scopes it as "an exploratory spike ... before committing to a specific
 # checkpoint", not a green-lit implementation - the spike's own finding was
 # that this checkpoint's diffuse-shading output does NOT cleanly localize a
@@ -601,8 +601,7 @@ ENABLE_SURFACE_NORMALS = True
 # project's numeric/synthetic-only verification protocol cannot confirm on
 # real photos whether it usefully proxies that. It was built anyway, off by
 # default, at the user's explicit second confirmation after being shown
-# this exact caveat - see the design notes Progress Log entry for
-# item 49 for the full reasoning trail.
+# this exact caveat - see the original design for the full reasoning trail.
 #
 # False (default) - feature is fully implemented but dormant; nothing in
 #                    the render pipeline calls estimate_illumination() yet
@@ -624,13 +623,13 @@ ENABLE_LEARNED_ILLUMINATION = True
 
 # ---------------------------------------------------------------------------
 # SAM-based precise mask-boundary segmentation. Described
-# in the design notes as "the largest architecture change in this entire
+# in the original design as "the largest architecture change in this entire
 # document", worded repeatedly as conditional on WHETHER to build it at all
 # ("only pursue once mask boundary precision specifically is the confirmed
 # bottleneck, not preemptively"). Built anyway at the user's own direct,
 # repeated request naming SAM segmentation specifically, overriding the
-# the design notes own "skip for now" framing - see the design notes
-# Progress Log entry for item 47 for the full reasoning trail.
+# the original design's own "skip for now" framing - see the original design
+# for the full reasoning trail.
 #
 # A genuine two-stage pipeline, NOT a swap of segmentation.py's existing
 # SegFormer model:
@@ -721,7 +720,7 @@ CAMERA_COMPOSITION_AWARE_ENABLED = True
 
 
 # ---------------------------------------------------------------------------
-# the design notes "Fixes to consider" #7 - base-photo color-grade unification pass
+# the original design - base-photo color-grade unification pass
 # (see vfx_engine/color_grade.py). This pipeline has always only ADDED
 # effect layers on top of the base photo - nothing has ever corrected the
 # base photo's OWN lighting. A source photo with a warm sunset sky over a
@@ -825,7 +824,7 @@ LENS_DIRT_SPECK_THRESHOLD = 0.78   # 0.0-1.0, higher than the haze film's defaul
 LENS_DIRT_SPECK_EDGE_POWER = 0.6   # >0, much gentler edge bias than the haze film's default edge_power=2.4 - specks (dust motes, hairs) can land anywhere on a lens, not just the edges
 LENS_DIRT_SPECK_WEIGHT = 0.7       # >=0, how strongly the speck layer contributes once combined with the haze film
 
-# the design notes "Fixes to consider" #6: soft, out-of-focus water droplets sitting
+# the original design: soft, out-of-focus water droplets sitting
 # directly on the camera lens itself (see vfx_engine/lens_rain.py) - a
 # camera artifact distinct from LENS_DIRT_* above (static dust/grime film)
 # and distinct from RAIN_PARAMS below (sharp in-scene falling drops).
@@ -933,7 +932,7 @@ RAIN_FAR_LAYER = dict(
 )
 
 # --- Fog / smoke / steam ---
-# the design notes "Fixes to consider" #5: turned on so the pipeline's own
+# the original design: turned on so the pipeline's own
 # depth-aware, depth-smoothed fog (FOG_DEPTH_AWARE/FOG_DEPTH_SMOOTHING_PX
 # below) actively masks over and unifies whatever mist/haze is already
 # baked into a source photo instead of leaving that pre-existing, pipeline-untouched haze

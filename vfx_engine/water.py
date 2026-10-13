@@ -6,7 +6,7 @@ photo's OWN water pixels (a lake, river, sea, or pool - see
 vfx_engine.segmentation.estimate_segmentation's "water" category),
 driven by the same curl-noise wind field family the particle system,
 vegetation sway, and cloud drift already use - see
-the design notes Part 20.1 and vfx_engine/scene_warp.py for the
+the original design and vfx_engine/scene_warp.py for the
 shared GPU engine this, vegetation.py's canopy sway, and cloud.py's sky
 drift are all built on.
 
@@ -16,11 +16,11 @@ render, and nothing anywhere in the codebase ever read it - a body of
 water sat perfectly, permanently static for the whole loop while rain
 fell, the camera drifted, vegetation swayed, and clouds drifted directly
 above it. At least as visually obvious a "static photo with effects on
-it" tell as the vegetation/cloud gaps the original the design notes already
+it" tell as the vegetation/cloud gaps the original design already
 flagged, and arguably more so given how much of a typical landscape
 composition a body of water can occupy.
 
-The bigger payoff, named in this project's very first the design notes document as
+The bigger payoff, named in this project's very first the original design document as
 "the actual payoff beyond per-element motion" and built here for the
 first time: water ripple timing is tied to the SAME wind conditions
 driving cloud drift directly above it, not an independently-tuned
@@ -84,12 +84,12 @@ def render_water_ripple(size, num_frames, base_image, water_mask, ripple_strengt
         default, rather than an independently-set value that could
         disagree with it.
     base_image_frames: optional iterable yielding one per-frame drifted
-        PIL Image (e.g. vfx_engine.camera.apply_camera_drift) - the design notes mechanism: when given, THIS (not the static base_image) is
+        PIL Image (e.g. vfx_engine.camera.apply_camera_drift) - the original design's mechanism: when given, THIS (not the static base_image) is
         what the rippling water actually resamples from, so it stays in
         registration with a simultaneously camera-drifting photo instead
         of always sampling the original, undrifted framing.
     camera_drift_params: optional dict {"zoom_amplitude", "pan_amplitude",
-        "pan_phase_deg"} - the design notes mechanism: when given, the water
+        "pan_phase_deg"} - the original design's mechanism: when given, the water
         MASK itself (not just the base texture above) is also resampled
         per-frame through the same camera-drift path (see
         vfx_engine.camera.apply_camera_drift_to_region_rg), so which

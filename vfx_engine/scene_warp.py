@@ -4,7 +4,7 @@ scene_warp.py
 Shared GPU engine behind vegetation.py's canopy sway and cloud.py's sky
 drift: both are "wind moves a masked region of the photo's OWN pixels"
 image-space displacement warps (see shaders/region_warp.glsl and
-the design notes Vegetation animation / Cloud motion sections), just
+the original design's Vegetation animation / Cloud motion sections), just
 with different masks and wind parameters - identical mechanism, so it
 lives here once instead of being duplicated in both callers, the same way
 particles.py is shared by particles_rain.py/particles_snow.py.
@@ -99,7 +99,7 @@ def render_region_warp(size, num_frames, base_image, region_rg_array,
         the instantaneous envelope (weather.gust_envelope's shape);
         "elastic" uses the damped-spring amplitude/lag values for callers wanting a
         lagged/springy response instead of one that snaps to the driving
-        signal instantly. the design notesix: this used to be an
+        signal instantly. Fix: this used to be an
         identity check against the two literal function objects
         weather.gust_envelope/weather.elastic_gust_envelope, which broke
         silently if a caller ever wrapped or partially-applied either

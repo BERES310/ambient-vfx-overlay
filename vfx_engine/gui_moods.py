@@ -3,7 +3,7 @@ gui_moods.py
 
 Plain-language layer between vfx_gui.py's simple controls (mood cards, the
 Intensity / Wind / Darkness sliders, quality and output choices - see
-the design notes) and the technical config.* knobs the pipeline actually reads.
+the original design) and the technical config.* knobs the pipeline actually reads.
 
 Pure logic, no Tk: everything here returns dicts of config overrides
 ({config attribute: value}) that the GUI applies with setattr on the render

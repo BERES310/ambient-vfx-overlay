@@ -64,7 +64,7 @@ def resolve_camera_composition_kwargs(image):
     pan ellipse toward the photo's own most visually interesting point
     (the same detection god rays/lens flare/rain's dual-tone lighting
     already reuse) is a real, if modest, step toward the "cinematographer
-    chooses pan direction based on composition" ideal the design notes
+    chooses pan direction based on composition" ideal in the original design
     describes, without needing full saliency/subject detection to do it.
     """
     zoom_pattern = config.CAMERA_ZOOM_PATTERN
@@ -497,7 +497,7 @@ def resolve_particle_depth_realism(image, depth_array, num_frames=1, start_frame
 
     num_frames: also folds in a FRESH per-frame camera-drifted photo
     stream (base_image_frames) via _resolve_scene_warp_drift_kwargs -
-    the design notes third named-but-previously-unfixed subsystem (the other
+    the original design's third named-but-previously-unfixed subsystem (the other
     two, vegetation/cloud, were fixed via that same helper) - so rain/snow
     atmosphere/backlight/refraction sampling stays in registration with a
     simultaneously camera-drifting photo too, not just vegetation sway and
@@ -594,7 +594,7 @@ def render_lens_flare_effects(size, num_frames, image, start_frame=0):
     read as genuinely fainter reflections, not identical copies.
 
     Uses render_lens_flare_overlay (not the shared render_light_overlay)
-    since the design notes gave build_lens_flare_texture a per-pixel color
+    since the original design gave build_lens_flare_texture a per-pixel color
     texture alongside the alpha texture - per-ghost color variance that a
     single flat `color` tint can't express.
     """
@@ -664,10 +664,10 @@ def render_lens_dirt_effects(size, num_frames, image, illumination_result=None, 
     vfx_engine/lens_dirt.py) - grime/dust on the lens itself, a camera
     artifact like lens flare, layered on top of everything else. The grime
     PATTERN itself is independent of scene content (it's on the LENS, not
-    in the scene) but `image` is now also used for the design notes light-
+    in the scene) but `image` is now also used for the original design's light-
     source coupling: the same detected light position/color that already
     feeds god rays, lens flare, and ground_fx.render_wet_sheen so grime scatters/glows near the light instead of only
-    ever darkening uniformly. `image` is also used for the design notes
+    ever darkening uniformly. `image` is also used for the original design
     brightness-dependent visibility - grime reads more strongly over
     bright regions of the photo (open sky) than dark ones (shadowed
     foliage), instead of applying uniformly regardless of what's behind
@@ -728,7 +728,7 @@ def render_lens_rain_effects(size, num_frames, image, illumination_result=None, 
     which this mirrors structurally), distinct from lens_dirt's static
     dust/grime and from particles_rain's sharp in-scene falling drops.
 
-    the design notes "Fixes to consider" #6: gated to heavy-rain intensity
+    the original design: gated to heavy-rain intensity
     specifically (config.LENS_RAIN_REQUIRED_INTENSITY, "storm" by default)
     - light/medium rain doesn't throw enough water at an exposed lens for
     this to be a realistic thing to see, so this only ever activates
@@ -812,7 +812,7 @@ def _resolve_scene_warp_drift_kwargs(image, num_frames, start_frame=0):
     cloud each need their OWN independent per-frame photo stream, since a
     generator consumed by one would be exhausted for the others. Uses the
     same FLAT apply_camera_drift path 8.3/9.6's own write-ups reference
-    (not the layered parallax from item 14/7.1) - both findings were
+    (not the layered parallax) - both findings were
     written against, and explicitly ask for, that original mechanism.
 
     Also folds in resolve_camera_composition_kwargs so
@@ -979,7 +979,7 @@ def render_cloud_effects(size, num_frames, image, segmentation, start_frame=0):
 def render_water_effects(size, num_frames, image, segmentation, start_frame=0):
     """
     Returns a list (0 or 1 items) of water-ripple frame streams (see
-    vfx_engine/water.py, the design notes Part 20.1) - real image-space wind
+    vfx_engine/water.py, the original design) - real image-space wind
     displacement of the photo's own water pixels, from AI segmentation.
     Same guards as render_vegetation_effects/render_cloud_effects above.
     """
@@ -1042,7 +1042,7 @@ def render_ground_effects(size, num_frames, depth_array, segmentation=None, imag
         ground_light_pos_uv = (light_pos[0] / size[0], light_pos[1] / size[1])
 
     # normals (surface_normals.py) + a pseudo light direction
-    # derived from the same ground_light_pos_uv above, plus (the design notes
+    # derived from the same ground_light_pos_uv above, plus (the original design
     # 9.9(a)) illumination.py's per-pixel albedo when available - feeds
     # render_wet_sheen's materials.shade_surface BRDF path below. Any of
     # these being unavailable (ENABLE_SURFACE_NORMALS off, no image, no
@@ -1377,7 +1377,7 @@ def process_image(image_path):
     # resolve_segmentation's docstring for exactly which effects consume it.
     segmentation = resolve_segmentation(image, depth_array, num_frames)
 
-    # the design notes(a): illumination.py's Marigold intrinsic-image
+    # learned-illumination: illumination.py's Marigold intrinsic-image
     # decomposition (albedo/shading), computed ONCE per photo here (like
     # depth_array/segmentation above) and threaded through to whichever
     # effects want it - lighting.estimate_ambient_light_color (via

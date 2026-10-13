@@ -100,7 +100,7 @@ def render_cloud_drift(size, num_frames, base_image, sky_mask, drift_strength=0.
         start_frame), not from 0, so resuming mid-render doesn't discontinue
         the Gap A crossfade's sine phase at the resume boundary.
 
-    the design notes (clouds only ever translate, never evolve shape):
+    the original design (clouds only ever translate, never evolve shape):
     a pure displacement warp can only push the photo's OWN pixels sideways
     along the wind field - it can never billow/stretch/dissipate a cloud
     puff, so at this effect's unusually large 26x drift multiplier a

@@ -20,16 +20,32 @@ wallpaper** (for Wallpaper Engine and similar players).
 - **Weather grades** – colour grading tuned per preset (`sunny`, `storm`, `snow`).
 - **Seamless loops** – tail is crossfaded into the head; two-pass encode
   (lossless intermediate → CRF) so the GPU render is never repeated.
-- **GUI** (`vfx_gui.py`), CLI scripts and a single `config.py` for all settings.
+- **Friendly GUI** (`vfx_gui.py`) – pick a photo, pick a mood, watch a live
+  preview, press *Make final video*. A **My videos** tab reloads the exact
+  settings behind any finished video; plain-language error messages explain
+  what went wrong (missing models, out of GPU memory, …).
+- **Resume anywhere** – stop a render at any time and continue later, even
+  after a crash or power cut.
+- **Batch CLI** (`vfx_cli.py`) – many photos × many moods in one command.
+- A single, heavily commented `config.py` for every low-level setting.
 
-## Weather presets
+For a non-technical walkthrough see [`QUICKSTART.md`](QUICKSTART.md).
 
-| Preset        | Contents                                              |
-|---------------|-------------------------------------------------------|
-| `rain_fog`    | medium rain + fog + light gusts                       |
-| `snow`        | falling snow with snow grade                          |
-| `clear_sunny` | god rays + ambient light, no precipitation            |
-| `storm`       | heavy rain, lightning, strong wind, storm grade       |
+## Moods and weather presets
+
+The GUI and CLI expose five moods, each with *intensity*, *wind* and
+*darkness* sliders (0–1):
+
+| Mood    | Contents                                                |
+|---------|---------------------------------------------------------|
+| `rain`  | rain with splashes, wet surfaces and light fog          |
+| `snow`  | drifting snow with depth blur and snow grade            |
+| `sunny` | sunbeams (god rays) and ambient light, no precipitation |
+| `storm` | heavy rain, lightning, strong wind, storm grade         |
+| `mist`  | low ground-hugging fog, soft dawn light                 |
+
+Under the hood the batch tools also use the engine presets `rain_fog`, `snow`,
+`clear_sunny` and `storm` (see `run_weather_benchmark.py`).
 
 ## Requirements
 
@@ -91,13 +107,21 @@ Check each model's page for its licence before redistributing anything derived f
 Put your photos (`.png`, `.jpg`) in `input_images/`, then:
 
 ```bash
+python vfx_gui.py                 # desktop GUI with live preview (Windows: double-click Start.bat)
+python vfx_cli.py photo.jpg --mood storm --quality draft --length 10
+python vfx_cli.py --all-photos --mood rain snow    # batch, one summary at the end
 python main.py                    # one output per photo, format set by config.OUTPUT_MODE
 python live_wallpaper.py          # seamless looping MP4 -> output/live_wallpapers/
-python vfx_gui.py                 # desktop GUI with live preview
 python run_weather_benchmark.py   # every photo x every weather preset, with timing CSV
 ```
 
-Results are written to `output/`.
+`vfx_cli.py` options: `--mood` (rain, snow, sunny, storm, mist), `--quality`
+(draft, balanced, high, maximum), `--length`, `--fps`, `--intensity`, `--wind`,
+`--darkness`, `--list-moods`, `--dry-run`. Defaults come from `settings.json`.
+
+Results are written to `output/` (finished videos in `output/live_wallpapers/`).
+On Windows, `Start.bat` creates a private virtual environment on first run and
+launches the GUI.
 
 ## Configuration
 
@@ -112,6 +136,9 @@ Everything lives in [`config.py`](config.py), heavily commented. Common knobs:
 | `WEATHER_GRADE_STYLE` | `None`, `"sunny"`, `"storm"`, `"snow"` |
 | `LIVE_WALLPAPER_*` | loop length and crossfade for `live_wallpaper.py` |
 
+User-facing defaults (mood, quality, length, fps, intensity, wind, darkness)
+are kept separately in `settings.json`.
+
 The first run on a photo is slower because depth/normals/segmentation are
 computed and cached (`cache/`); later runs on the same photo reuse them.
 
@@ -121,11 +148,18 @@ computed and cached (`cache/`); later runs on the same photo reuse them.
 main.py                  batch renderer (png / gif / mp4)
 live_wallpaper.py        seamless looping wallpaper renderer
 vfx_gui.py               CustomTkinter GUI
+vfx_cli.py               command-line batch renderer
+Start.bat                Windows one-click launcher
+QUICKSTART.md            plain-language user guide
+settings.json            user-facing defaults
 fast_preview.py          cheap single-frame preview path
 run_weather_benchmark.py photos x weather presets batch
 download_models.py       fetches the AI models
 config.py                all settings
 vfx_engine/              engine modules + GLSL shaders
+  gui_*.py               GUI moods, system helpers and widgets
+  error_hints.py         plain-language error explanations
+  user_settings.py       settings.json handling
 ```
 
 ## Tips

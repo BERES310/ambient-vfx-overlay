@@ -1,7 +1,7 @@
 """
 user_settings.py
 
-the design notes items 30 and 32: the handful of options a person actually
+the original design: the handful of options a person actually
 wants to change live in a small `settings.json` next to the program, so nobody
 has to edit config.py (~68 KB of engine constants) to change the look or the
 output size. Every value is checked when the file is loaded and a mistake is

@@ -3,10 +3,10 @@ surface_normals.py
 
 monocular surface-normal estimation - a NEW model added to
 the pipeline, not a swap of an existing one (contrast with depth.py's
-DEPTH_MODE = "marigold" branch, the design notes, which swaps the
+DEPTH_MODE = "marigold" branch, the original design, which swaps the
 architecture behind an ALREADY-existing contract every caller depends on).
 
-Named in the design notes as "the strongest new-model candidate in
+Named in the original design as "the strongest new-model candidate in
 this document" - it directly closes a gap that's surfaced repeatedly and
 never had a real fix: ground_fx.build_ground_mask's own docstring already
 admits it has no actual surface-flatness/normal detection,
@@ -19,7 +19,7 @@ it indirectly through stacked depth+position+segmentation heuristics.
 Uses diffusers.MarigoldNormalsPipeline (checkpoint
 prs-eth/marigold-normals-v1-1) - the same diffusion-based Marigold family
 already wired into this project for depth.py's DEPTH_MODE = "marigold"
-(item 46), but a DIFFERENT checkpoint fine-tuned for a different output
+, but a DIFFERENT checkpoint fine-tuned for a different output
 modality; the two are not interchangeable. API verified against the real
 diffusers docs () rather than assumed:
 
@@ -83,7 +83,7 @@ def _raise_missing_diffusers_dependency(original_error):
         "config.ENABLE_SURFACE_NORMALS is True but the 'diffusers' package "
         "is not installed in this project's venv. Surface-normal estimation "
         " uses diffusers.MarigoldNormalsPipeline - the same "
-        "package depth.py's DEPTH_MODE = 'marigold' (item 46) needs. "
+        "package depth.py's DEPTH_MODE = 'marigold'  needs. "
         "Install it once with a real network connection available: "
         "'./venv/Scripts/python.exe -m pip install diffusers'. Set "
         "config.ENABLE_SURFACE_NORMALS back to False to disable this "

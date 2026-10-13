@@ -3,7 +3,7 @@ god_rays.py
 
 Volumetric light shafts ("god rays" / crepuscular rays) radiating from the
 dominant light source detected in the photo, plus a simple camera lens
-flare - see the design notes Lighting section. Real light rarely stays
+flare - see the original design's Lighting section. Real light rarely stays
 perfectly diffuse when there's haze, fog, or falling rain/snow in the air;
 it visibly streaks toward the camera, and a bright enough source produces
 a lens flare (halo + a few faint "ghost" circles) as an artifact of the
@@ -213,7 +213,7 @@ def sample_light_color(base_image, light_pos, radius_frac=0.05, fallback=(255, 2
     actual photo - the closest available local proxy for "what color is
     the dominant light in this scene" without a dedicated illumination-
     color model (a genuinely harder, less standardized task than depth/
-    segmentation - the design notes, an exploratory spike, not something
+    segmentation - the original design, an exploratory spike, not something
     to build speculatively here).
 
     Used to tint wet-surface reflections, fog, and lens artifacts toward the photo's real light color
@@ -231,7 +231,7 @@ def sample_light_color(base_image, light_pos, radius_frac=0.05, fallback=(255, 2
     own separate blending logic. `illumination_result`, when given
     (config.ENABLE_LEARNED_ILLUMINATION), lets the ambient term prefer
     illumination.py's learned `shading` channel over a blurred-photo
-    heuristic - see estimate_ambient_light_color's the design notes(a)
+    heuristic - see estimate_ambient_light_color's learned-illumination
     section. Imported lazily (not at module top) purely to keep this
     module's existing top-of-file import list (math, numpy, PIL)
     unchanged for any caller that doesn't need this - lighting.py has no
@@ -641,7 +641,7 @@ def build_starburst_texture(size, light_pos, num_spikes=6, spike_length_fraction
     # Spikes come in opposite pairs through the light source (a real
     # diffraction star's arms are symmetric across the center), evenly
     # spaced by default but each pair gets its own small angle jitter and
-    # the whole star gets one random base rotation, the design notes
+    # the whole star gets one random base rotation, the original design
     # established "not perfectly regular" precedent applied here to a
     # different effect.
     base_rotation = rng.uniform(0.0, 2.0 * math.pi)
@@ -693,7 +693,7 @@ def render_light_overlay(size, num_frames, texture, color=(255, 244, 214), pulse
     to the light source's ACTUAL drifted screen position each frame
     instead of it staying glued to the original photo's framing while
     camera drift pans/zooms the base image underneath it - the same
-    registration-mismatch class the design notes already fixed for
+    registration-mismatch class the original design already fixed for
     vegetation/cloud/particle sampling and segmentation masks (see
     camera.apply_camera_drift_to_array/apply_camera_drift_to_region_rg's
     docstrings). Mirrors scene_warp.render_region_warp's existing
@@ -747,7 +747,7 @@ def render_lens_flare_overlay(size, num_frames, alpha_texture, color_texture, pu
     """
     Generator - yields num_frames RGBA overlay frames for lens flare
     specifically, using a per-pixel `color_texture` (see
-    build_lens_flare_texture's the design notes-16.1 color_array return) instead of
+    build_lens_flare_texture's the 16.1 color_array return) instead of
     render_light_overlay's single flat tint. render_light_overlay itself
     is left untouched and keeps serving god rays (build_ray_texture),
     which are a single-color light shaft with no per-ghost color variance

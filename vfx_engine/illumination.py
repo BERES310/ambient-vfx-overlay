@@ -1,12 +1,12 @@
 """
 illumination.py
 
-learned illumination estimation - the design notes own text
+learned illumination estimation - the original design's own text
 scopes this item as "an exploratory spike... before committing to a
-specific checkpoint", NOT a green-lit implementation the way items 44/46/48
+specific checkpoint", NOT a green-lit implementation the way the neighbouring items
 (depth.py's DEPTH_MODE = "marigold"/"metric", surface_normals.py) were. An
 earlier pass over this same document already ran that spike and logged a
-"do not implement yet" decision for two reasons: (a) the design notes explicitly asks for
+"do not implement yet" decision for two reasons: (a) the original design explicitly asks for
 evaluation first, not code, and (b) this project's own numeric/synthetic-
 only verification protocol cannot judge whether the candidate model's
 output actually proxies "where is the light source and what color is it" -
@@ -16,7 +16,7 @@ otherwise.
 
 This module exists anyway, because the user was shown that exact caveat and
 explicitly asked for it to be built despite it (see config.py's
-ENABLE_LEARNED_ILLUMINATION comment and the design notes second item-49 entry).
+ENABLE_LEARNED_ILLUMINATION comment and the original design's second entry).
 It is dormant by default and its light-source-position/color outputs below
 are clearly documented as an unverified derived heuristic, not a validated
 fix for the four gaps the spike named (3.5 wet-sheen's hardcoded white
@@ -30,7 +30,7 @@ module's real output against real photos first.
 Uses diffusers.MarigoldIntrinsicsPipeline, "lighting" checkpoint variant
 (prs-eth/marigold-iid-lighting-v1-1) - part of the same Marigold diffusion
 family already wired into this project for depth.py's DEPTH_MODE =
-"marigold" (item 46) and surface_normals.py (item 48), but yet another
+"marigold"  and surface_normals.py , but yet another
 separate checkpoint (NOT interchangeable with either). API verified
 directly against the installed package's own source
 (diffusers/pipelines/marigold/pipeline_marigold_intrinsics.py - not merely
@@ -99,8 +99,8 @@ def _raise_missing_diffusers_dependency(original_error):
         "config.ENABLE_LEARNED_ILLUMINATION is True but the 'diffusers' "
         "package is not installed in this project's venv. Illumination "
         "estimation uses diffusers.MarigoldIntrinsicsPipeline "
-        "- the same package depth.py's DEPTH_MODE = 'marigold' (item 46) "
-        "and surface_normals.py (item 48) need. Install it once with a real "
+        "- the same package depth.py's DEPTH_MODE = 'marigold'  "
+        "and surface_normals.py  need. Install it once with a real "
         "network connection available: "
         "'./venv/Scripts/python.exe -m pip install diffusers'. Set "
         "config.ENABLE_LEARNED_ILLUMINATION back to False to disable this "

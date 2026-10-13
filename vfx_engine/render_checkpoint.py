@@ -1,8 +1,8 @@
 """
 render_checkpoint.py
 
-Frame-level render checkpoint/resume. Directly answers the design notes
-item 1: "there should be a cache for every render in case rendering gets
+Frame-level render checkpoint/resume. Directly answers a request in the original design:
+ "there should be a cache for every render in case rendering gets
 interrupted so there would be no need to regenerate everything from
 scratch - cache should be deleted permanently after the program finished
 working."
@@ -17,7 +17,7 @@ How it works: every GPU-effect generator in this codebase (fog, rain,
 snow, ground effects, god rays, lens dirt/rain, scene warp) computes its
 per-frame output as a pure function of (frame_i, num_frames, a handful of
 setup arrays derived once from a content-derived seed) - see the
-RNG-determinism audit in the design notes Progress Log. That means
+RNG-determinism audit in the original design. That means
 re-running the SAME effect generator with the SAME seed/config and asking
 it to start its frame loop at `start_frame` instead of 0 produces
 bit-identical output for every frame from `start_frame` onward, without

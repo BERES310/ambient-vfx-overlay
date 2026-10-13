@@ -51,7 +51,7 @@ from vfx_engine.mask_editor import open_mask_editor
 # pixel just barely past the threshold and one far past it were treated
 # identically (both "fully in"), throwing away exactly the information a
 # real soft edge needs. Same fix direction already used for segmentation
-# in Part 9 (item 24): derive the softness from the continuous signal
+# in Part 9 : derive the softness from the continuous signal
 # itself, via a smoothstep transition band, BEFORE any decision is
 # hardened - not a blur bolted on afterward.
 #
@@ -133,7 +133,7 @@ def _box_blur(array, radius):
 def _soft_threshold_mask(values, threshold, invert, local_radius, band_min, band_max):
     """
     Returns a (height, width) float32 0.0-1.0 soft mask array directly
-    from a continuous `values` field and a scalar `threshold` - the design notes replacement for "hard np.where cutoff, then blur afterward".
+    from a continuous `values` field and a scalar `threshold` - the original design's replacement for "hard np.where cutoff, then blur afterward".
     Builds a per-pixel smoothstep transition band around the threshold,
     sized per-pixel by _local_value_scale (see above), instead of a
     single hard yes/no decision softened by one fixed-radius blur applied
@@ -194,7 +194,7 @@ def build_mask(image, image_path, depth_array=None, depth_frames=None, segmentat
     elif mode == "threshold":
         # already a soft, continuous 0.0-1.0 numpy array
         # (see _soft_threshold_mask) - no further MASK_FEATHER blur
-        # needed or wanted here, the same way item 24 made segmentation's
+        # needed or wanted here, the same way segmentation's
         # masks intrinsically soft rather than blurred after the fact.
         primary = _build_threshold_mask(image)
     elif mode == "depth":
@@ -367,7 +367,7 @@ _DEPTH_BAND_MAX = 0.15
 # it rather than getting smoothed away itself. Tuned empirically against
 # both project photos (a dense forest-canopy aerial view with no near
 # object at all, and a lake/castle scene with real near stonework) - see
-# the design notes Progress Log for the verification renders.
+# the original design for the verification renders.
 _DEPTH_PROMINENCE_RADIUS_FRACTION = 0.08
 
 

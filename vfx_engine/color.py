@@ -30,7 +30,7 @@ saved. This does NOT make every individual GPU shader's own internal math
 gamma-aware (that would mean decoding every texture sample and re-encoding
 every frag_color write, in every .glsl file) - that's a much larger,
 separate undertaking; this fixes the compositing/blending chain the
-the design notes own examples are all drawn from.
+the original design's own examples are all drawn from.
 
 Part 21: everything downstream of the GPU particle/
 fog/scene-warp shaders (compositor -> lighting/lightning -> postprocess)
@@ -178,7 +178,7 @@ def encode_image(linear_array, mode="RGB"):
 def downsample_linear(array, factor):
     """
     Box-filter downsamples a linear float32 (height, width, channels)
-    array by an exact integer `factor` in both dimensions - the design notes
+    array by an exact integer `factor` in both dimensions - the original design
     spatial supersampling: averaging `factor` x `factor` blocks of pixels
     is the mathematically correct way to anti-alias a higher-resolution
     render down to its final size (equivalent to area-sampling each output

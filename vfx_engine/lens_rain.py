@@ -1,7 +1,7 @@
 """
 lens_rain.py
 
-the design notes "Fixes to consider" #6: a NEW camera-lens artifact, genuinely
+the original design: a NEW camera-lens artifact, genuinely
 missing from the codebase before this - soft, out-of-focus water droplets
 sitting directly ON the camera lens itself, distinct from lens_dirt.py's
 static dust/grime film and distinct from particles_rain.py's IN-SCENE
@@ -113,7 +113,7 @@ def _bilinear_sample(image_array, xs, ys):
     Samples image_array (H, W, 3) float32 at fractional (xs, ys) pixel
     coordinates (same shape as each other), with edge-clamped bilinear
     interpolation. No scipy dependency (not installed in this project's
-    venv - see the design notes rule 1, nothing gets pulled in from
+    venv - see the original design, nothing gets pulled in from
     outside vfx_overlay/) so this is done by hand: the 4 integer neighbor
     lookups plus a manual weighted blend, exactly what
     scipy.ndimage.map_coordinates(order=1) would do internally.

@@ -2,12 +2,12 @@
 sam_segmentation.py
 
 SAM-based precise mask-boundary segmentation. Described
-in the design notes own prose as "the largest architecture change in this
+in the original design's own prose as "the largest architecture change in this
 entire document," worded repeatedly as conditional on WHETHER to build it
 at all ("only pursue once mask boundary precision specifically is the
 confirmed bottleneck, not preemptively"). Built anyway at the user's own
 direct, repeated request naming SAM segmentation specifically - see
-the design notes Progress Log entry for item 47.
+the original design.
 
 This is a genuine TWO-STAGE pipeline, not a swap of segmentation.py's
 existing SegFormer model:

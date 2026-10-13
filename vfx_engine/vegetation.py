@@ -6,7 +6,7 @@ photo's OWN tree/plant/foliage pixels (a single photo has no 3D mesh to
 actually simulate wind-blown motion on), driven by the same curl-noise
 wind field family the particle system uses, so trees sway in the same
 gusts the rain/snow is already blowing through - see
-the design notes Vegetation animation section and
+the original design's Vegetation animation section and
 vfx_engine/scene_warp.py for the shared GPU engine this and cloud.py's
 sky drift are both built on.
 
@@ -23,7 +23,7 @@ flexible stem more like grass than like a rigid branch.
 
 Trees, and vegetation animation in general, is the single most obvious
 remaining "this is a static photo with effects on it" tell without this -
-see the design notes item #2: motion is what human vision is most
+see the original design: motion is what human vision is most
 sensitive to, more than any static-detail improvement.
 """
 
@@ -130,7 +130,7 @@ def _foliage_hue_gate(base_image, size):
 
     This is deliberately just a per-pixel color heuristic, not a deeper
     fix cross-checking segmentation's own per-pixel vegetation confidence -
-    the design notes explicitly defers that to when item 14 (segmentation.py
+    the original design explicitly defers that to when segmentation (segmentation.py
     review) is reached in the follow-up part.
     """
     hsv = np.asarray(base_image.convert("HSV").resize(size), dtype="float32")
@@ -158,7 +158,7 @@ def _canopy_sway_weight(vegetation_mask, threshold=0.4):
     vegetation pixel's height within its own local mass of foliage - near
     0 at the base of a tree/bush (trunks/roots barely move in real wind),
     ramping toward 1 higher up within the same contiguous blob (canopies
-    sway the most) - see the design notes Vegetation animation
+    sway the most) - see the original design's Vegetation animation
     section: "movement increases toward the top of each tree mass ...
     rather than uniform per-pixel displacement."
 
@@ -370,7 +370,7 @@ def render_palm_sway(size, num_frames, base_image, palm_mask,
     structure.
 
     base_image_frames/camera_drift_params: see render_vegetation_sway's
-    matching params - identical the design notes mechanism, reused as-is.
+    matching params - identical the original design's mechanism, reused as-is.
     start_frame: render-checkpoint/resume support - see
         render_vegetation_sway's matching param for the full explanation;
         identical mechanism reused as-is.
@@ -424,14 +424,14 @@ def render_grass_sway(size, num_frames, base_image, grass_mask,
     Fixes the confirmed gap in grass has far LOWER stiffness
     than a tree canopy and should sway MORE readily to the same gust, not
     less. Investigating the actual current code turned up something more
-    fundamental than the design notes own framing, worth flagging: grass was
+    fundamental than the original design's own framing, worth flagging: grass was
     never routed through _canopy_sway_weight's tree-tuned model AT ALL -
     segmentation.py classifies "grass"/"field" under its own "ground_soft"
     category, entirely separate from vegetation, and main.py's
     render_vegetation_effects only ever read the (then-single, now split
-    three ways - the design notes) vegetation mask. So grass previously
+    three ways - the original design) vegetation mask. So grass previously
     received NO sway whatsoever, not merely an under-weighted one. The
-    fix the design notes actually asked for - "give grass its own low-
+    fix the original design actually asked for - "give grass its own low-
     stiffness, higher-amplitude, traveling-wave motion instead of routing
     it through the tree-tuned canopy-height weighting" - is still exactly
     the right one; it just needed grass connected to a sway effect in the
@@ -446,7 +446,7 @@ def render_grass_sway(size, num_frames, base_image, grass_mask,
     Also reused directly for segmentation's "vegetation_flower" category
 : "a flower head
     bobs on a flexible stem more like a blade of grass than like a rigid
-    branch" is the design notes own framing, and this function's motion
+    branch" is the original design's own framing, and this function's motion
     model - uniform low-stiffness amplitude, no trunk-to-canopy height
     grading, a traveling wave rather than tree sway's in-place turbulence -
     already IS exactly that description, with nothing about its

@@ -20,7 +20,7 @@ have produced for those frames instead of re-deriving them.
 
 Deleted (clear_frame_cache) as soon as its render finishes successfully -
 the same lifecycle contract as render_checkpoint.delete_checkpoint (see
-that module's docstring and the design notes item 1: "cache should be
+that module's docstring and the original design: "cache should be
 deleted permanently after the program finished working").
 """
 

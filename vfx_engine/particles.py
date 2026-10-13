@@ -257,7 +257,7 @@ def render_particles(size, num_frames, count, color, size_range, speed_range,
         "light always comes from directly above" assumption. None (the
         default) falls back to that fixed assumption.
     ambient_tint_grid: optional (grid_h, grid_w, 3) uint8 array from
-        sample_ambient_tint.build_ambient_tint_grid - the design notes, local
+        sample_ambient_tint.build_ambient_tint_grid - the original design, local
         color sampling instead of one global tint. When given, uploaded as
         a small GL_LINEAR-filtered texture and sampled per-fragment at
         each particle's own screen position (particles_rain.glsl only -
@@ -385,7 +385,7 @@ def render_particles(size, num_frames, count, color, size_range, speed_range,
     # Local ambient tint - a tiny grid uploaded as its own
     # texture and sampled with GL_LINEAR filtering, which performs the
     # "bilinearly interpolate between the 4 nearest grid cells" lookup the
-    # the design notes item describes in hardware, for free, rather than needing
+    # the original design describes in hardware, for free, rather than needing
     # manual lerp code in the fragment shader. CLAMP_TO_EDGE keeps edge
     # cells from wrapping into the opposite side of the frame the way
     # REPEAT would.
@@ -929,7 +929,7 @@ def _setup_particles(size, count, size_range, speed_range, use_depth, glow, stre
         # areas of the frame instead of uniform per-particle scatter.
         # Static per particle (not re-sampled per frame): an approximation
         # of clumping, not literally moving cluster fronts - see
-        # the design notes Physical motion simulation section.
+        # the original design's Physical motion simulation section.
         #
         # _value_noise() is a pure deterministic hash of its input
         # coordinates - with no offset, EVERY render of EVERY photo at

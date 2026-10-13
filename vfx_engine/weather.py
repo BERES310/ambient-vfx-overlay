@@ -5,7 +5,7 @@ A single shared "weather state" - one wind DIRECTION and one GUST timing
 envelope - sampled by every wind-driven effect in this pipeline (rain/
 snow particle drift, fog drift, vegetation sway, cloud drift) instead of
 each running off its own independent, uncoordinated noise field. See
-the design notes item #8: a real gust of wind bends trees, sways
+the original design: a real gust of wind bends trees, sways
 falling snow, and drifts fog all in the same direction at the same time -
 before this module existed, each system's motion would have needed to be
 hand-tuned to even COINCIDENTALLY look coordinated, because there was no
@@ -25,10 +25,10 @@ paths (a GPU COMPUTE shader for particles, one FRAGMENT shader for fog,
 another for vegetation/cloud) onto one identical noise field and
 coordinate convention, a far larger rewrite for a benefit this module
 already delivers: real directional and temporal coherence, which is what
-the design notes actually names as the goal ("the same direction at the same
+the original design actually names as the goal ("the same direction at the same
 time"), not bit-identical per-pixel noise sampling.
 
-the design notes ("the gust is a single global scalar - no spatial
+the original design ("the gust is a single global scalar - no spatial
 propagation across the frame"): every pixel/particle used to "feel" the
 gust at the exact same instant, with zero travel-time lag across the
 scene - unrealistic for a wide landscape composition, where a gust
@@ -247,7 +247,7 @@ def gust_shader_uniforms(frame_i, num_frames, elastic=False, damping_ratio=0.4, 
     a numpy CPU fallback needs to compute the SAME position-aware gust
     value gust_envelope()/elastic_gust_envelope() would, entirely on its
     OWN side, at its own native per-pixel/per-particle resolution -
-    the design notes ("the gust is a single global scalar - no spatial
+    the original design ("the gust is a single global scalar - no spatial
     propagation across the frame"). See this module's own docstring for
     the full explanation; see shaders/region_warp.glsl's/blur.glsl's/
     particles_wind.comp's own `gust_at()` GLSL function (and
@@ -306,7 +306,7 @@ def gust_multiplier_at(x_frac, y_frac, frame_i, num_frames):
     """
     Numpy-vectorized CPU equivalent of the GLSL `gust_at()` function every
     shader-based consumer implements (see gust_shader_uniforms's
-    docstring, the design notes) - used by particles.py's `_cpu_dynamic_data`
+    docstring, the original design) - used by particles.py's `_cpu_dynamic_data`
     fallback path (no compute-shader support on this GPU/driver).
     x_frac/y_frac: numpy arrays (or plain floats), each particle's
     current position as a 0.0-1.0 fraction of the frame's width/height.

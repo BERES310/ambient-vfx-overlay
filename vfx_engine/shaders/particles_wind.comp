@@ -75,7 +75,7 @@ uniform float noise_loop_radius;   // how much the wind noise varies over one lo
 uniform float speed_wobble;   // 0.0-1.0+, periodic speed variation approximating drag/gust response
 uniform float wobble_strength;   // 0.0-1.0+, extra tumble/rotation wobble (snow-flake-like), 0 = off
 
-// the design notes (spatially-propagating gust): `drift` above used to
+// the original design (spatially-propagating gust): `drift` above used to
 // arrive CPU-pre-multiplied by one frame-global weather.gust_envelope()
 // value - now it's the RAW wind-strength multiplier, and this shader
 // computes each PARTICLE's own gust value via gust_at() below (using

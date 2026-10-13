@@ -189,7 +189,7 @@ void main() {
     // apply to round shapes - a defocused drop is, at that
     // point, just another round particle, and deserves the same
     // circular-symmetry fix.
-    // the design notes fix (see particles_snow.glsl): the old random 3..6 lobe
+    // the original design's fix (see particles_snow.glsl): the old random 3..6 lobe
     // count with a tiny 0.14/0.07 cosine wobble was both an arbitrary lobe
     // count and too subtle to read as anything but a faintly-lumpy circle.
     // Fixed 6-count + a sharpened (pow'd) wave gives a real, visible facet

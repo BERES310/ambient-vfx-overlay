@@ -137,7 +137,7 @@ def process_image(image_path, preset_label=None, out_path=None):
     report_stage("segmentation", "Understanding the photo - sky, ground and water")
     segmentation = resolve_segmentation(image, depth_array, num_frames)
 
-    # Learned illumination (the design notes(a)) - see main.py's
+    # Learned illumination - see main.py's
     # process_image for the full explanation; identical mechanism here.
     illumination_result = None
     if config.ENABLE_LEARNED_ILLUMINATION:

@@ -196,7 +196,7 @@ def build_light_glow_field(size, light_pos_uv, radius):
     shape, same aspect-correction trick, just evaluated on the CPU here
     since lens dirt is a plain numpy overlay, not a GPU shader.
 
-    Public (not `_`-prefixed) since the design notes has main.py build
+    Public (not `_`-prefixed) since the original design has main.py build
     this once from the STATIC, undrifted light position and then
     optionally warp the result through camera.apply_camera_drift_to_array
     itself, exactly like god_rays.build_ray_texture/build_lens_flare_
@@ -290,7 +290,7 @@ def render_lens_dirt(size, num_frames, texture, strength=0.35, pulse_amount=0.08
     glow_shape: optional pre-built raw light-glow field (see
         build_light_glow_field) - either a single static (height, width)
         array (equivalent to the default, computed-once-from-light_pos_uv
-        behavior below) or, the design notes, a per-frame iterable (see
+        behavior below) or, the original design, a per-frame iterable (see
         camera.apply_camera_drift_to_array) so the glow tracks the
         light's ACTUAL drifted screen position each frame instead of
         staying glued to the original photo's framing while camera drift
@@ -312,7 +312,7 @@ def render_lens_dirt(size, num_frames, texture, strength=0.35, pulse_amount=0.08
     Also fixes `image` (the same source photo everything
     else in this pipeline already uses), when given, scales the effective
     grime texture by _build_brightness_visibility_field before anything
-    else below is computed - so BOTH the plain darkening and the design notes-
+    else below is computed - so BOTH the plain darkening and the original design -
     15.1 glow read more strongly over bright regions of the photo and
     more faintly over dark ones, instead of applying uniformly regardless
     of what's actually behind the lens dirt. None (default) skips this

@@ -75,7 +75,7 @@ _METRIC_MODEL_NAMES = {
 # prediction, via a diffusers pipeline, not the transformers
 # "depth-estimation" pipeline the two checkpoints above use) - see
 # _get_pipeline's marigold branch and estimate_depth's docstring for the
-# full rationale (18.3 names this as the option to reach for specifically
+# full rationale (the design names this as the option to reach for specifically
 # when depth artifacts recur in hazy/low-texture regions, e.g. bug 5.4a's
 # fog-seam issue - Depth-Anything's regression architecture has to commit
 # to a single confident guess per pixel even where the photo itself gives
@@ -407,7 +407,7 @@ def estimate_depth(image, return_confidence=False):
         to use the confidence signal themselves (e.g. to be more
         conservative in low-confidence regions), not currently wired into
         every depth consumer in this pipeline (a larger, separate scope -
-        see the design notes own framing of 7.4 as "not a large gap on its
+        see the original design's own framing as "not a large gap on its
         own, but worth naming").
     """
     # Resumable on-disk cache (see vfx_engine/cache_store.py): estimate_depth
@@ -435,8 +435,7 @@ def estimate_depth(image, return_confidence=False):
 
     if is_marigold:
         # MarigoldDepthPipeline's own calling convention (verified against
-        # the diffusers docs, not guessed - see this project's Progress Log
-        # for item 46/18.3): pass the PIL image directly, read `.prediction`
+        # the diffusers docs, not guessed - see this project's notes): pass the PIL image directly, read `.prediction`
         # back. With the default match_input_resolution=True, the
         # prediction is already resized to the input image's own
         # resolution, and with output_type="np" (the default) its shape is

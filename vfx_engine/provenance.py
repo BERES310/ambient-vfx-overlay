@@ -1,7 +1,7 @@
 """
 provenance.py
 
-the design notes Part 20.4: "render provenance - save the exact parameter set
+the original design: "render provenance - save the exact parameter set
 alongside every output." With 20+ Parts' worth of interacting tunable
 parameters now in config.py, being able to look back at any past render
 and know precisely what produced it (and diff two renders' parameter

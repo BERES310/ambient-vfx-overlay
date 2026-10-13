@@ -24,7 +24,7 @@ alone.
 Every effect here is built to close an exact loop over `num_frames`
 frames, the same way particles.py is - phase (frame_i/num_frames) drives
 everything, so nothing needs loop.py's crossfade to hide a seam (see
-the design notes Loop generation section). Snow "accumulation" in
+the original design's Loop generation section). Snow "accumulation" in
 particular can't be truly one-directional in a seamless loop (that would
 require a jump cut back to empty) - it's a slow build-up-and-settle
 breathing cycle instead, see render_snow_accumulation's docstring.
@@ -89,7 +89,7 @@ def build_normal_coherence_mask(image, radius=8):
     LOCALLY CONSISTENT the scene's surface normals are around each pixel,
     via vfx_engine.surface_normals' dormant Marigold-normals estimate
     (config.ENABLE_SURFACE_NORMALS - see that module's own evaluation-
-    gated framing, mirroring illumination.py's - the design notes). A
+    gated framing, mirroring illumination.py's - the original design). A
     genuinely flat surface (a calm puddle, a level patio, a still lake)
     has normals that agree closely with their neighbors across a small
     window; a merely dark/low-albedo but textured surface (grass, gravel,
@@ -168,7 +168,7 @@ def build_ground_mask(depth_array, segmentation=None, include_soft_ground=False,
         makes sense on (rain's render_wet_darkening/render_wet_sheen/
         render_splashes want this False - see main.py's render_ground_effects,
         which calls this function once per surface type it needs).
-    image: optional original photo (PIL Image) - the design notes. When given
+    image: optional original photo (PIL Image) - the original design. When given
         AND config.ENABLE_SURFACE_NORMALS is on, the depth/position (and
         optional segmentation) heuristic above is additionally multiplied
         by build_normal_coherence_mask's per-pixel normal-coherence score,
@@ -222,7 +222,7 @@ def render_wet_darkening(size, num_frames, ground_mask, strength=0.4, roughness=
     roughness: optional (height, width) float32 array, 0.0-1.0 (see
         build_roughness_field) - modulates darkening strength so puddling
         reads as uneven (darker in low points, lighter on raised/textured
-        areas - the design notes) instead of one flat gray wash applied
+        areas - the original design) instead of one flat gray wash applied
         identically everywhere. None = the old uniform behavior.
     start_frame: skips yielding frames 0..start_frame-1 (see
         render_checkpoint.py) - both setup arrays above (dark_rgba,
@@ -273,7 +273,7 @@ def render_wet_sheen(size, num_frames, ground_mask, strength=0.4, band_count=3.0
         behavior.
     highlight_color: (r, g, b) 0-255 - defaults to flat white. Pass the
         scene's actual detected light color (see god_rays.sample_light_color,
-        itself now the design notes ambient-blended) to tint the sheen toward
+        itself now the original design's ambient-blended) to tint the sheen toward
         it - a real wet-surface reflection picks up the
         color of whatever light it's actually reflecting (warm sodium
         streetlamps produce an orange/yellow sheen, not a neutral white
@@ -285,7 +285,7 @@ def render_wet_sheen(size, num_frames, ground_mask, strength=0.4, band_count=3.0
         replaced by vfx_engine.materials.shade_surface's real per-pixel
         Fresnel+roughness BRDF output (materials.MATERIAL_TABLE[
         material_category], with illumination_albedo optionally
-        overriding its flat albedo tint per-pixel - the design notes(a)) -
+        overriding its flat albedo tint per-pixel - learned-illumination) -
         the shared shading function's first real consumer, replacing the
         old hardcoded uniform tint with a spatially-varying, physically-
         motivated one (surfaces facing the light shine more; the color
@@ -401,14 +401,14 @@ def _apply_splash_refraction(canvas, base_array, cx, cy, radius, fade, light_pos
     never past its edge onto bare, unlit background.
 
     `peak_alpha` (0-255) is the fully-opaque-center alpha this disc tops
-    out at - the design notes reuses this same function at a smaller radius
+    out at - the original design reuses this same function at a smaller radius
     and lower peak_alpha for the small "wet base" pooling disc at a
     splash's impact point (sitting under the separated spikes), not just
     the old single whole-crown disc, so it needed to stop being hardcoded.
 
     `base_array=None` (no photo to warp) falls back to a flat wash of
     `fill_color` with the same soft radial edge falloff, instead of
-    requiring a caller-side branch - the design notes calls this
+    requiring a caller-side branch - the original design calls this
     unconditionally for the wet base disc regardless of whether
     base_image was given, same as the per-spike patches.
     """
@@ -588,9 +588,9 @@ def _apply_spike_patch(canvas, base_array, cx, cy, angle, base_r, tip_r, half_wi
 
 def _draw_soft_droplet(frame, cx, cy, size, color, alpha, light_pos_uv, width, height):
     """
-    the design notes point 2b - a small radial-gradient blob (a bright
+    the original design's point 2b: a small radial-gradient blob (a bright
     off-center specular highlight fading to a soft-edged base color, no
-    hard outline) instead of one flat-filled circle - the design notes calls
+    hard outline) instead of one flat-filled circle - the original design calls
     this out as "the cheapest place to test" a soft radial-gradient +
     rim-highlight fill before applying the same idea to the much larger,
     costlier crown spikes themselves (see _apply_spike_patch).
@@ -646,7 +646,7 @@ def _sample_spawn_points_with_spacing(rng, flat_probs, mask_shape, count, min_sp
     which it accepts the last candidate anyway, so a dense ground mask
     with too little room for full spacing can't loop forever. Cheap:
     splash counts are tens, not thousands (a few thousand rng.choice calls
-    worst case), per the design notes item's own note.
+    worst case), per the original design's own note.
     """
     xs = np.empty(count, dtype=np.float64)
     ys = np.empty(count, dtype=np.float64)
@@ -862,7 +862,7 @@ def render_splashes(size, num_frames, ground_mask, count=90, max_radius=26, dura
 
     for frame_i in range(start_frame, num_frames):
         phase = (frame_i / max(num_frames, 1))
-        # Always allocated, regardless of base_array - the design notes spike
+        # Always allocated, regardless of base_array - the original design's spike
         # patches and wet base disc both rely on this shared float32
         # accumulator's soft alpha-blend compositing (real feathered
         # edges) even in the no-photo flat-fill fallback, not just when
@@ -1021,7 +1021,7 @@ def render_snow_accumulation(size, num_frames, ground_mask, max_opacity=0.5, rou
         identically everywhere. Real surface-normal/edge
         data doesn't exist in this pipeline (see 1.11/19.1) - this is
         explicitly the "at minimum, a coarse static noise field" fallback
-        the design notes itself calls out, not true surface-flatness modeling.
+        the original design itself calls out, not true surface-flatness modeling.
         None = the old uniform behavior.
     start_frame: skips yielding frames 0..start_frame-1 (see
         render_checkpoint.py) - the setup above (ground_rgb,

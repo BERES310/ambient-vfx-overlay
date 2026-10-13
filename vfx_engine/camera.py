@@ -2,7 +2,7 @@
 camera.py
 
 Adds a slow, cyclic camera drift/zoom (Ken Burns effect) to the base
-photo before compositing effects on top - see the design notes
+photo before compositing effects on top - see the original design
 "Camera motion" section. This is likely the single highest-impact "does
 this feel alive" upgrade outside of the particles themselves: a live
 wallpaper with dense rain/snow falling over a perfectly static, pixel-
@@ -179,9 +179,9 @@ def compute_global_drift_pixel_vectors(num_frames, width, height, zoom_amplitude
     non-directional whole-frame blend.
 
     Only covers the camera-driven global drift case (the "spatially
-    uniform, cheap, no per-pixel vector needed" case the design notes itself
+    uniform, cheap, no per-pixel vector needed" case the original design itself
     calls out) - NOT scene-content motion (vegetation sway, cloud drift
-    via scene_warp.py), which the design notes frames as a much bigger, separate
+    via scene_warp.py), which the original design frames as a much bigger, separate
     effort (a per-pixel vector field would need its own render target/
     uniform readback) and is explicitly out of scope for this fix. Fast,
     independently-moving content (rain/snow) already has its own correct,
@@ -202,7 +202,7 @@ def compute_global_drift_pixel_vectors(num_frames, width, height, zoom_amplitude
     step; the second-order radial displacement term that would vary with
     distance from frame center (from the zoom itself changing) is
     deliberately omitted as a documented simplification matching the
-    the design notes "spatially uniform... cheap" framing for this sub-case -
+    the original design's "spatially uniform... cheap" framing for this sub-case -
     this pipeline's characteristically subtle, single-digit-percent drift
     amplitudes keep that omitted term small.
 
@@ -253,7 +253,7 @@ def _working_size(width, height, zoom_amplitude, pan_amplitude, pan_bias_angle_d
     exactly this case). ceil() guarantees enough headroom always.
 
     pan_bias_angle_deg: see _camera_path/_effective_pan_amplitude -
-    the design notes pan-ellipse rotation can push an individual axis's
+    the original design's pan-ellipse rotation can push an individual axis's
     excursion above pan_amplitude, so the margin uses the inflated
     effective value whenever a bias angle is actually in use. None
     (default) = pan_amplitude unchanged, identical sizing to before this
@@ -457,7 +457,7 @@ def _layer_depth_weights(depth_array, centers=_LAYER_DEPTH_CENTERS):
     Returns a list of 3 (height, width) float32 arrays (far, mid, near) -
     a smooth PARTITION OF UNITY (they sum to exactly 1.0 at every pixel)
     built from Gaussian bumps centered on `centers`. Soft,
-    not hard-thresholded, layer membership - the design notes multi-layer
+    not hard-thresholded, layer membership - the original design's multi-layer
     parallax needs each layer's content to fade smoothly into its
     neighbors' where they overlap in depth, not snap at a hard cutoff
     (which would show a visible seam the instant the layers start moving
@@ -481,7 +481,7 @@ def _layered_camera_drift_frames(base_image, depth_array, num_frames, zoom_ampli
 
     The core idea: split the photo into near/mid/far layers by depth,
     centered on this photo's own 15th/50th/85th depth percentiles (see
-    _compute_layer_depth_centers/_layer_depth_weights, the design notes),
+    _compute_layer_depth_centers/_layer_depth_weights, the original design),
     and let EACH layer's effective camera zoom/pan
     amplitude scale differently (_LAYER_AMPLITUDE_SCALES) - the near layer
     pans/zooms further per frame than the far layer, exactly like real
@@ -624,7 +624,7 @@ def apply_camera_drift_to_array(array, num_frames, zoom_amplitude=0.05, pan_ampl
     mask edges - precisely where accuracy matters most for a clean
     occlusion/effect boundary).
 
-    the design notes (mentioned there as applying "far less" here, since a
+    the original design (mentioned there as applying "far less" here, since a
     scalar field has no fine photographic texture to lose - still fixed
     for consistency with apply_camera_drift and to avoid maintaining two
     diverging resampling strategies): the old shared "working canvas"

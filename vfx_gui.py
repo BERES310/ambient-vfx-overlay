@@ -2,7 +2,7 @@
 vfx_gui.py
 
 Desktop app for turning a photo into a looping "live wallpaper" video
-(CustomTkinter, dark theme). Designed in the design notes / the design notes:
+(CustomTkinter, dark theme). Designed from the original design notes:
 
     Create      pick a photo -> pick a mood -> nudge three sliders -> the preview
                 updates by itself -> "Make final video".

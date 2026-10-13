@@ -78,11 +78,11 @@ def resolve_strike_geometry(schedule, size, depth_array=None, strike_frames=3, s
     for that column, whether that's the true horizon, a ridgeline, or a
     genuinely tall foreground object (a tree, a building) that happens to
     occlude the sky first. That single scan naturally covers both cases
-    the design notes calls out, without needing to special-case "is this a
+    the original design calls out, without needing to special-case "is this a
     horizon or an object" - whatever the photo's actual geometry puts
     there first IS the answer either way.
 
-    Fixes the design notes ("bolt always starts at literal row 0"): the
+    Fixes the original design ("bolt always starts at literal row 0"): the
     start point now goes through the SAME column-scan helper
     (_column_depth_profile) as the endpoint, via _resolve_strike_start,
     instead of being hardcoded to `(start_x, 0.0)` - see that function's
@@ -253,7 +253,7 @@ def render_lightning(size, schedule, strike_geometry, color=(230, 235, 255), bra
 . Each value is now a 3-tuple `(start, end,
         distance_factor)` - see resolve_strike_geometry's docstring.
 
-    the design notes ("every restrike reuses the literal same bolt_image"):
+    the original design ("every restrike reuses the literal same bolt_image"):
     a real multi-pulse strike doesn't hold pixel-perfectly still between its
     return stroke and its restrikes - individual minor branches visibly
     appear/disappear/re-route between pulses while the main channel (the
@@ -401,7 +401,7 @@ def _generate_bolt(size, start, end, color, branch_chance, trunk_seed, branch_rn
     would advance its state differently each time and produce two
     DIFFERENT jagged shapes, misaligning the core and its own glow.
 
-    the design notes (trunk/branch rng split): `trunk_seed` reseeds a
+    the original design (trunk/branch rng split): `trunk_seed` reseeds a
     fresh `trunk_rng` every call, so the MAIN channel's own midpoint-
     displacement shape is bit-identical across repeated calls sharing the
     same seed (render_lightning calls this multiple times per strike, once
@@ -411,7 +411,7 @@ def _generate_bolt(size, start, end, color, branch_chance, trunk_seed, branch_rn
     channel with different branch detail, matching how real multi-pulse
     strikes behave.
 
-    the design notes (distance-based tapering): `distance_factor`
+    the original design (distance-based tapering): `distance_factor`
     (0.0=far, 1.0=near, from resolve_strike_geometry's depth sample)
     scales line_width and glow_radius and cools/desaturates `color` toward
     a fixed haze tint for far strikes, and dims overall alpha slightly -

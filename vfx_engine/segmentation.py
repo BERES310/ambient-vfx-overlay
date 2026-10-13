@@ -33,7 +33,7 @@ needed that lower-level access:
     _infer_tile_probabilities) and softmaxed into genuine continuous
     per-pixel probabilities - a real soft, model-informed edge instead of
     a hard decision that gets blurred after the fact. This also
-    supersedes the design notes earlier NEAREST->BILINEAR fix (see
+    supersedes the original design's earlier NEAREST->BILINEAR fix (see
     _infer_tile_probabilities/estimate_segmentation below) - there is no
     longer a hard per-class mask to upsample at all; the softness is
     intrinsic to the probability field itself now, not a resize-filter
@@ -87,7 +87,7 @@ _MODEL_NAME = "nvidia/segformer-b5-finetuned-ade-640-640"
 _model = None
 _processor = None
 
-# the design notes tiling parameters. _TILE_SIZE matches the model's own
+# the original design's tiling parameters. _TILE_SIZE matches the model's own
 # native working resolution (640x640 - see this file's docstring) - a
 # tile this size gets fed to the model at close to 1:1, instead of being
 # downscaled further the way a whole large photo would be. Overlap is a
@@ -342,7 +342,7 @@ def _release_model():
 def _tile_boxes(width, height, tile_size, stride):
     """
     Yields (left, top, right, bottom) crop boxes covering the full
-    width x height image with overlap - the design notes. Each row/column of
+    width x height image with overlap - the original design. Each row/column of
     starts is spaced by `stride` (< tile_size, so adjacent tiles
     overlap), with one final start forced flush against the image's own
     right/bottom edge if the regular stride spacing would otherwise
@@ -401,7 +401,7 @@ def _infer_tile_probabilities(model, processor, tile_image):
     Runs raw model inference on one image tile (any pixel size) and
     returns a (num_labels, tile_height, tile_width) float32 array of
     genuine per-pixel class PROBABILITIES at the tile's own true pixel
-    resolution - the design notes.
+    resolution - the original design.
 
     The processor resizes (stretches, not aspect-preserving) whatever
     tile it's given to the model's fixed 640x640 input size; the model's
@@ -409,7 +409,7 @@ def _infer_tile_probabilities(model, processor, tile_image):
     this file's docstring. Those raw logits are bilinear-upsampled
     DIRECTLY to the tile's own true (tile_height, tile_width) in one
     pass (not first to 640x640 then again to the tile size - that would
-    be exactly the kind of double-resample the design notes fixed elsewhere),
+    be exactly the kind of double-resample the original design's fixed elsewhere),
     which also automatically un-does the processor's own initial
     stretch-to-square (whatever aspect distortion the input resize
     introduced, resizing the output logits back to the tile's own
@@ -423,7 +423,7 @@ def _infer_tile_probabilities(model, processor, tile_image):
 
     (A batched variant of this function was tried as a performance fix
     and reverted - measured to make things WORSE, not better, on this
-    project's target hardware: see the design notes Progress Log
+    project's target hardware: see the original design
     for the investigation. The real bottleneck turned out to be
     elsewhere - see this file's docstring's "GPU memory contention"
     section.)

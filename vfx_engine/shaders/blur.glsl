@@ -35,7 +35,7 @@ uniform vec2 wind_bias;      // shared weather wind direction (see vfx_engine/we
                               // also used as gust_at()'s spatial-propagation direction below,
                               // since fog.py sets this directly to weather.wind_direction_vector() with no
                               // further per-caller scaling, unlike region_warp.glsl's own wind_bias uniform.
-// the design notes (spatially-propagating gust): this used to be one
+// the original design (spatially-propagating gust): this used to be one
 // CPU-precomputed frame-global `uniform float gust` value (1.0 = no
 // coupling) - now this fragment computes its OWN gust value via
 // gust_at() below, using this same set of raw ingredients
@@ -69,7 +69,7 @@ uniform float ground_texture_strength;   // 0.0-1.0, how strongly fog anchors to
 //
 // This used to be the classic `fract(sin(dot(p, big_vec)) * huge_const)`
 // trick. That version is only reliable for small |p| - discovered while
-// implementing the design notes domain warp, whose extra fbm() sample point
+// implementing the original design's domain warp, whose extra fbm() sample point
 // (p shifted by a warp offset) pushed coordinates into a range where
 // sin()'s hardware range-reduction loses enough precision that many
 // adjacent integer grid cells alias to near-identical hash values. The

@@ -115,7 +115,7 @@ def _apply_regional_bokeh_blur(frame, depth_array, focus_depth, bokeh_factor, si
         depth = np.asarray(depth_img, dtype=np.float32)
 
     # Same real thin-lens circle-of-confusion formula as particles.py's
-    # _setup_particles - the design notes explicitly
+    # _setup_particles - the original design explicitly
     # complements that per-particle size/opacity scaling with this actual
     # blur kernel, not replaces it, so both need to agree on which drops
     # count as "out of focus" and by how much; sharing one function (not
@@ -214,7 +214,7 @@ def render_rain(size, num_frames, intensity="medium", angle=0, blur=True,
         base_image for atmosphere/backlight/refraction sampling so drops
         stay in registration with a simultaneously camera-drifting photo.
         None (default) = old behavior (samples the static base_image).
-    ambient_tint_grid: see render_particles - the design notes, an optional
+    ambient_tint_grid: see render_particles - the original design, an optional
         coarse per-photo color grid (see particles.build_ambient_tint_grid)
         that gives each drop its OWN local color based on where it falls on
         screen, instead of every drop sharing one flat `color`/drop_color.
