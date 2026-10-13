@@ -19,7 +19,18 @@ from vfx_engine.particles import compute_circle_of_confusion, render_particles, 
 _INTENSITY_PRESETS = {
     "light": {"count": 300, "speed_range": (8.0, 11.0), "size_range": (2, 4), "drift": 0.1},
     "medium": {"count": 1400, "speed_range": (10.0, 14.0), "size_range": (1.5, 3.5), "drift": 0.1},
-    "storm": {"count": 4500, "speed_range": (19.0, 32.0), "size_range": (1.5, 4.5), "drift": 0.3},
+    # 2026-09-22: count was 4500 - dense enough (especially once doubled up
+    # by the near+far layered-rain pass, see config.RAIN_NEAR_LAYER/
+    # RAIN_FAR_LAYER's count_scale, which together multiply this base count
+    # by ~1.6x more streaks on screen) to fully occlude the photo behind it
+    # rather than reading as heavy rain over a visible scene. A first pass
+    # at count=2200 was verified by render and still looked like a near-total
+    # whiteout, because the faster speed_range above (also a 2026-09-22 fix)
+    # stretches each drop's motion-blur streak longer, which claws back
+    # most of the screen-coverage reduction a raw count cut buys. Cut much
+    # harder instead; speed_range stays raised so storm still reads as more
+    # intense than medium via fall speed, not via opacity/coverage.
+    "storm": {"count": 850, "speed_range": (30.0, 48.0), "size_range": (1.5, 4.5), "drift": 0.3},
 }
 
 
@@ -104,7 +115,7 @@ def _apply_regional_bokeh_blur(frame, depth_array, focus_depth, bokeh_factor, si
         depth = np.asarray(depth_img, dtype=np.float32)
 
     # Same real thin-lens circle-of-confusion formula as particles.py's
-    # _setup_particles - explicitly
+    # _setup_particles - the design notes explicitly
     # complements that per-particle size/opacity scaling with this actual
     # blur kernel, not replaces it, so both need to agree on which drops
     # count as "out of focus" and by how much; sharing one function (not
@@ -146,7 +157,8 @@ def render_rain(size, num_frames, intensity="medium", angle=0, blur=True,
                  refraction_strength=0.35, color=None, light_pos_uv=None,
                  motion_blur_samples=1, shutter_fraction=0.5,
                  base_image_frames=None, ambient_tint_grid=None,
-                 velocity_stretch_scale=1.0, depth_bias_power=1.0, seed=None, start_frame=0):
+                 velocity_stretch_scale=1.0, depth_bias_power=1.0, speed_scale=1.0,
+                 seed=None, start_frame=0):
     """
     Renders a falling-rain animation generator and returns transparent
     frames (RGBA), ready to be applied to a photo.
@@ -202,7 +214,7 @@ def render_rain(size, num_frames, intensity="medium", angle=0, blur=True,
         base_image for atmosphere/backlight/refraction sampling so drops
         stay in registration with a simultaneously camera-drifting photo.
         None (default) = old behavior (samples the static base_image).
-    ambient_tint_grid: see render_particles -, an optional
+    ambient_tint_grid: see render_particles - the design notes, an optional
         coarse per-photo color grid (see particles.build_ambient_tint_grid)
         that gives each drop its OWN local color based on where it falls on
         screen, instead of every drop sharing one flat `color`/drop_color.
@@ -225,6 +237,13 @@ def render_rain(size, num_frames, intensity="medium", angle=0, blur=True,
         underlying depth map but read as a distinct "near" layer and a
         distinct "far" layer instead of identical single-layer rain.
         1.0 (default) = old behavior, unbiased.
+    speed_scale: user-requested global fall-speed knob (2026-09-22) -
+        multiplies preset["speed_range"] (both ends) before it reaches
+        render_particles, independent of which intensity preset is chosen
+        and independent of the near/far layers' own relative speed_scale
+        (see config.RAIN_NEAR_LAYER/RAIN_FAR_LAYER, which scale THIS
+        already-scaled value further, not instead of it). 1.0 (default) =
+        old behavior, unscaled.
 
     when focus_depth/bokeh_factor/depth_array are all given,
     the returned frames also get a real post-render depth-keyed Gaussian
@@ -253,6 +272,8 @@ def render_rain(size, num_frames, intensity="medium", angle=0, blur=True,
     if depth_array is not None and depth_bias_power != 1.0:
         depth_array = np.clip(depth_array, 0.0, 1.0) ** depth_bias_power
     preset = intensity if isinstance(intensity, dict) else _INTENSITY_PRESETS.get(intensity, _INTENSITY_PRESETS["medium"])
+    speed_lo, speed_hi = preset["speed_range"]
+    scaled_speed_range = (speed_lo * speed_scale, speed_hi * speed_scale)
     drop_color = color or sample_ambient_tint(base_image, fallback=(190, 205, 230))
     if seed is None and base_image is not None:
         seed = lens_dirt.content_seed(base_image, salt="rain")
@@ -262,7 +283,7 @@ def render_rain(size, num_frames, intensity="medium", angle=0, blur=True,
         count=preset["count"],
         color=drop_color,
         size_range=preset["size_range"],
-        speed_range=preset["speed_range"],
+        speed_range=scaled_speed_range,
         drift=preset["drift"],
         angle_deg=angle,
         shader_file="particles_rain.glsl",

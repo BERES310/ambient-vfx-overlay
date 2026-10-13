@@ -30,10 +30,9 @@ saved. This does NOT make every individual GPU shader's own internal math
 gamma-aware (that would mean decoding every texture sample and re-encoding
 every frag_color write, in every .glsl file) - that's a much larger,
 separate undertaking; this fixes the compositing/blending chain the
-design notes's own examples are all drawn from.
+the design notes own examples are all drawn from.
 
-Part 21 (GPU-resident pipeline, design notes "out of scope" section - explicitly
-requested by the user anyway): everything downstream of the GPU particle/
+Part 21: everything downstream of the GPU particle/
 fog/scene-warp shaders (compositor -> lighting/lightning -> postprocess)
 used to round-trip through plain CPU numpy arrays, one conversion per
 stage, discarding whatever device residency the upstream shader output
@@ -179,7 +178,7 @@ def encode_image(linear_array, mode="RGB"):
 def downsample_linear(array, factor):
     """
     Box-filter downsamples a linear float32 (height, width, channels)
-    array by an exact integer `factor` in both dimensions -.4's
+    array by an exact integer `factor` in both dimensions - the design notes
     spatial supersampling: averaging `factor` x `factor` blocks of pixels
     is the mathematically correct way to anti-alias a higher-resolution
     render down to its final size (equivalent to area-sampling each output

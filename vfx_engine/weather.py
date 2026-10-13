@@ -28,7 +28,7 @@ already delivers: real directional and temporal coherence, which is what
 the design notes actually names as the goal ("the same direction at the same
 time"), not bit-identical per-pixel noise sampling.
 
-("the gust is a single global scalar - no spatial
+the design notes ("the gust is a single global scalar - no spatial
 propagation across the frame"): every pixel/particle used to "feel" the
 gust at the exact same instant, with zero travel-time lag across the
 scene - unrealistic for a wide landscape composition, where a gust
@@ -247,7 +247,7 @@ def gust_shader_uniforms(frame_i, num_frames, elastic=False, damping_ratio=0.4, 
     a numpy CPU fallback needs to compute the SAME position-aware gust
     value gust_envelope()/elastic_gust_envelope() would, entirely on its
     OWN side, at its own native per-pixel/per-particle resolution -
-    ("the gust is a single global scalar - no spatial
+    the design notes ("the gust is a single global scalar - no spatial
     propagation across the frame"). See this module's own docstring for
     the full explanation; see shaders/region_warp.glsl's/blur.glsl's/
     particles_wind.comp's own `gust_at()` GLSL function (and
@@ -306,7 +306,7 @@ def gust_multiplier_at(x_frac, y_frac, frame_i, num_frames):
     """
     Numpy-vectorized CPU equivalent of the GLSL `gust_at()` function every
     shader-based consumer implements (see gust_shader_uniforms's
-    docstring) - used by particles.py's `_cpu_dynamic_data`
+    docstring, the design notes) - used by particles.py's `_cpu_dynamic_data`
     fallback path (no compute-shader support on this GPU/driver).
     x_frac/y_frac: numpy arrays (or plain floats), each particle's
     current position as a 0.0-1.0 fraction of the frame's width/height.

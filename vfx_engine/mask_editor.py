@@ -41,7 +41,7 @@ _MAX_WINDOW_SIZE = 900   # photos larger than this are downscaled in the window 
 # The brush's soft edge starts this many pixels in from its own outer
 # radius (as a FRACTION of the radius, not a fixed pixel count, so a
 # large and a small brush both keep a proportionally similar feel) -
-# asks for "actual control over the mask's edge softness
+# the design notes asks for "actual control over the mask's edge softness
 # per-stroke," so leaving a solid, fully-opaque core (not fading the
 # ENTIRE brush from center to edge) matters: a brush that's soft
 # everywhere, even dead center, would make it hard to ever paint a

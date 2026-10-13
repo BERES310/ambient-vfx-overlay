@@ -108,15 +108,22 @@ void main() {
     // this flake's own LOCAL (pre-rotation) frame, but the whole quad is
     // rotated on-screen via in_rotation, so a shape defined here rotates
     // right along with it.
-    float lobe_count = 3.0 + floor(hash11(v_shape_seed + 5.0) * 4.0);   // 3..6 lobes
+    // Real snow crystals are hexagonal (6-fold symmetry) - the previous
+    // random 3..6 lobe count with a tiny 0.14/0.07 cosine wobble was both
+    // physically wrong and far too subtle to read as "flake" instead of a
+    // faintly-lumpy circle. Fixed 6-fold count + a sharpened (pow'd) wave
+    // gives distinct pointed arms; a per-flake sharpness/phase hash still
+    // keeps every flake visually unique.
+    float lobe_count = 6.0;
     float shape_phase = v_shape_seed * 6.2831853;
     float angle = atan(v_corner.y, v_corner.x);
     // Out-of-focus flakes are lens discs, not crystals: the lobes fade out
     // with defocus so big near flakes read as round bokeh, not lumpy blobs.
     float lobe_amount = 1.0 - 0.8 * smoothstep(0.35, 0.85, v_blur);
-    float bump = 1.0
-        + lobe_amount * (0.14 * cos(angle * lobe_count + shape_phase)
-        + 0.07 * cos(angle * (lobe_count + 2.0) - shape_phase * 1.7));
+    float arm_sharpness = 0.6 + hash11(v_shape_seed + 11.0) * 0.5;
+    float arm_wave = pow(abs(cos(angle * (lobe_count * 0.5) + shape_phase)), arm_sharpness);
+    float secondary = 0.06 * cos(angle * lobe_count + shape_phase * 1.7);
+    float bump = 1.0 + lobe_amount * (0.34 * arm_wave + secondary - 0.15);
     float dist = length(v_corner) / bump;
 
     // Soft radial glow for in-focus flakes (bright core fading smoothly
@@ -143,7 +150,18 @@ void main() {
     // Snow is white: depth-driven brightness only nudges it (a full multiply
     // turned far/big flakes dull grey against the bright overcast sky).
     vec3 color = particle_color * mix(1.0, v_brightness, 0.3);
-    color += vec3(1.0) * rim * defocus_mix * 0.3;   // visibly brighten the bokeh ring itself
+    color += vec3(1.0) * rim * defocus_mix * 0.22;   // visibly brighten the bokeh ring itself
+    // The disc's alpha is fully solid (flat_disc), but its interior color
+    // alone is often nearly indistinguishable in luminance from a pale
+    // overcast sky/haze - visually that reads as a hollow ring (only the
+    // brightened rim above stands out) even though it isn't one. A first
+    // attempt at +0.14 wasn't enough against a bright overcast sky (the
+    // interior stayed close enough to background luminance to still read
+    // as hollow); the rim boost above was also trimmed from 0.3 so the rim
+    // no longer dominates the interior by such a wide margin. The interior
+    // lift is now strong enough to sit clearly above typical sky/haze
+    // luminance rather than just nudging toward it.
+    color += vec3(1.0) * flat_disc * defocus_mix * 0.4;
 
     // dual-tone ambient lighting, ported from
     // particles_rain.glsl's own hook - a warm tint on the side of the
@@ -171,13 +189,25 @@ void main() {
         // top of the frame (closer to sky/key light) - real glints
         // aren't uniformly likely across the whole image, they cluster
         // wherever the light source actually is.
+        //
+        // The cross arms are now confined to well inside the flake's own
+        // silhouette (dist <~1) via both a tighter width falloff (*3.0
+        // instead of *0.7, so an arm can't reach the quad's edges) and an
+        // explicit radial falloff. Previously the arms spanned almost the
+        // whole quad, so the glint rendered as an oversized 4-point star
+        // that replaced the snowflake silhouette entirely instead of
+        // highlighting it.
         float directional_bias = mix(0.4, 1.3, clamp(1.0 - v_screen_uv.y, 0.0, 1.0));
         float sparkle_amount = sparkle_strength * directional_bias * clamp((v_brightness - 1.0) * 4.0, 0.0, 1.0);
-        float cross_h = clamp(1.0 - abs(v_corner.y) * 14.0, 0.0, 1.0) * clamp(1.0 - abs(v_corner.x) * 0.7, 0.0, 1.0);
-        float cross_v = clamp(1.0 - abs(v_corner.x) * 14.0, 0.0, 1.0) * clamp(1.0 - abs(v_corner.y) * 0.7, 0.0, 1.0);
-        float sparkle = max(cross_h, cross_v) * sparkle_amount;
-        shape_alpha = max(shape_alpha, sparkle * 0.85);
-        color += vec3(1.0) * sparkle * 0.6;
+        float radial_falloff = 1.0 - smoothstep(0.55, 1.0, length(v_corner));
+        float cross_h = clamp(1.0 - abs(v_corner.y) * 14.0, 0.0, 1.0) * clamp(1.0 - abs(v_corner.x) * 3.0, 0.0, 1.0);
+        float cross_v = clamp(1.0 - abs(v_corner.x) * 14.0, 0.0, 1.0) * clamp(1.0 - abs(v_corner.y) * 3.0, 0.0, 1.0);
+        float sparkle = max(cross_h, cross_v) * sparkle_amount * radial_falloff;
+        // Additive highlight layered ON TOP of the existing flake alpha
+        // instead of a max() override - a glint should brighten a point on
+        // the flake, not stamp a bigger star shape over/instead of it.
+        shape_alpha = clamp(shape_alpha + sparkle * 0.35, 0.0, 1.0);
+        color += vec3(1.0) * sparkle * 0.45;
     }
 
     if (atmosphere_enabled > 0.5) {

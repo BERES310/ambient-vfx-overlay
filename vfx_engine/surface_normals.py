@@ -3,7 +3,7 @@ surface_normals.py
 
 monocular surface-normal estimation - a NEW model added to
 the pipeline, not a swap of an existing one (contrast with depth.py's
-DEPTH_MODE = "marigold" branch, item 46/, which swaps the
+DEPTH_MODE = "marigold" branch, the design notes, which swaps the
 architecture behind an ALREADY-existing contract every caller depends on).
 
 Named in the design notes as "the strongest new-model candidate in
@@ -21,8 +21,7 @@ prs-eth/marigold-normals-v1-1) - the same diffusion-based Marigold family
 already wired into this project for depth.py's DEPTH_MODE = "marigold"
 (item 46), but a DIFFERENT checkpoint fine-tuned for a different output
 modality; the two are not interchangeable. API verified against the real
-diffusers docs (https://huggingface.co/docs/diffusers/en/api/pipelines/
-marigold) rather than assumed:
+diffusers docs () rather than assumed:
 
     pipe = diffusers.MarigoldNormalsPipeline.from_pretrained(
         "prs-eth/marigold-normals-v1-1"

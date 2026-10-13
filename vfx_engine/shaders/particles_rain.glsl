@@ -189,12 +189,21 @@ void main() {
     // apply to round shapes - a defocused drop is, at that
     // point, just another round particle, and deserves the same
     // circular-symmetry fix.
-    float lobe_count = 3.0 + floor(hash11(v_shape_seed + 5.0) * 4.0);
+    // the design notes fix (see particles_snow.glsl): the old random 3..6 lobe
+    // count with a tiny 0.14/0.07 cosine wobble was both an arbitrary lobe
+    // count and too subtle to read as anything but a faintly-lumpy circle.
+    // Fixed 6-count + a sharpened (pow'd) wave gives a real, visible facet
+    // instead of noise - but this branch only runs already deep into
+    // defocus (see bokeh_mix below), so unlike a sharp flake it stays
+    // gentle: a real out-of-focus drop reads as a soft near-round blob,
+    // not a faceted crystal.
+    float lobe_count = 6.0;
     float shape_phase = v_shape_seed * 6.2831853;
     float disc_angle = atan(disc.y, disc.x);
-    float disc_bump = 1.0
-        + 0.14 * cos(disc_angle * lobe_count + shape_phase)
-        + 0.07 * cos(disc_angle * (lobe_count + 2.0) - shape_phase * 1.7);
+    float arm_sharpness = 0.6 + hash11(v_shape_seed + 11.0) * 0.5;
+    float arm_wave = pow(abs(cos(disc_angle * (lobe_count * 0.5) + shape_phase)), arm_sharpness);
+    float secondary = 0.05 * cos(disc_angle * lobe_count + shape_phase * 1.7);
+    float disc_bump = 1.0 + 0.12 * arm_wave + secondary - 0.06;
     float bumped_disc_dist = disc_dist / disc_bump;
     float disc_core = 1.0 - smoothstep(0.0, 0.5, bumped_disc_dist);
     float disc_glow = pow(clamp(1.0 - bumped_disc_dist, 0.0, 1.0), 1.6);

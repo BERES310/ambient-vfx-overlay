@@ -8,7 +8,61 @@ many frames have been produced and how much longer it'll take.
 """
 
 import sys
+import threading
 import time
+
+
+class RenderCancelled(Exception):
+    """Raised inside a render when the user pressed Cancel (see set_cancel_event)."""
+
+
+# GUI hooks. A front-end (vfx_gui.py) installs
+# these before starting a render on its worker thread; command-line runs leave
+# them unset and behave exactly as before.
+_reporter = None       # callable(event: dict) - receives stage + frame progress
+_cancel_event = None   # threading.Event - set() means "stop as soon as possible"
+_hooks_lock = threading.Lock()
+
+
+def set_reporter(reporter):
+    """Installs (or, with None, removes) the callback that receives
+    {"kind": "stage", "stage": key, "label": text} and
+    {"kind": "frames", "index", "total", "percent", "eta_seconds", "eta_text"}
+    events."""
+    global _reporter
+    with _hooks_lock:
+        _reporter = reporter
+
+
+def set_cancel_event(event):
+    """Installs (or, with None, removes) the threading.Event that with_progress
+    and check_cancelled() poll."""
+    global _cancel_event
+    with _hooks_lock:
+        _cancel_event = event
+
+
+def check_cancelled():
+    """Raises RenderCancelled if the installed cancel event has been set."""
+    event = _cancel_event
+    if event is not None and event.is_set():
+        raise RenderCancelled("Render cancelled.")
+
+
+def report_stage(stage, label):
+    """Tells the front-end which pipeline phase is starting (and honours a
+    pending cancel request at the phase boundary)."""
+    check_cancelled()
+    reporter = _reporter
+    if reporter is not None:
+        reporter({"kind": "stage", "stage": stage, "label": label})
+
+def report_resume(start_frame, total):
+    """Tells the front-end that an interrupted render is being continued from `start_frame`."""
+    reporter = _reporter
+    if reporter is not None:
+        reporter({"kind": "resume", "index": start_frame, "total": total, "percent": 100 * start_frame / total})
+
 
 # Every N frames, return PyTorch's cached-but-unused CUDA blocks to the
 # driver (see torch.cuda.empty_cache() below). postprocess.py allocates a
@@ -28,7 +82,44 @@ import time
 _EMPTY_CACHE_EVERY_N_FRAMES = 20
 
 
-def with_progress(frames, total, label="Rendering"):
+def report_frames(frames, total, start_frame=0):
+    """
+    Generator - passes `frames` through unchanged while checking for Cancel
+    and sending "frames" events to the front-end. Use it on the RAW frame
+    stream, upstream of anything that buffers frames (make_seamless_loop
+    holds back its whole crossfade head before yielding one): counting
+    frames downstream of such a buffer makes the progress bar sit at 0 % -
+    and Cancel go unnoticed - until that many frames have already rendered.
+    Pair with with_progress(..., emit_events=False) so events aren't doubled.
+
+    start_frame: how many frames a resumed render already had finished - the
+    stream then holds only the remaining frames, but the events still count
+    from start_frame + 1 so the bar continues where the earlier run stopped.
+    """
+    start_time = time.time()
+    first_frame_elapsed = None
+    for done, frame in enumerate(frames, start=1):
+        check_cancelled()
+        index = start_frame + done
+        elapsed = time.time() - start_time
+        steady_eta = None
+        if done == 1:
+            first_frame_elapsed = elapsed   # frame 1 also pays one-time setup; see with_progress
+        else:
+            steady_elapsed = elapsed - first_frame_elapsed
+            if steady_elapsed > 0:
+                steady_eta = (total - index) * steady_elapsed / (done - 1)
+        reporter = _reporter
+        if reporter is not None:
+            reporter({
+                "kind": "frames", "index": index, "total": total, "percent": 100 * index / total,
+                "eta_seconds": steady_eta,
+                "eta_text": format_eta_long(steady_eta) if steady_eta is not None else "calculating...",
+            })
+        yield frame
+
+
+def with_progress(frames, total, label="Rendering", emit_events=True):
     """
     Generator - passes frames from `frames` through unchanged, while
     printing a progress bar to the console along the way (frame number,
@@ -41,6 +132,7 @@ def with_progress(frames, total, label="Rendering"):
     torch_cuda = _torch_cuda_if_available()
 
     for index, frame in enumerate(frames, start=1):
+        check_cancelled()
         elapsed = time.time() - start_time
 
         if index == 1:
@@ -62,6 +154,14 @@ def with_progress(frames, total, label="Rendering"):
         filled = int(bar_width * index / total)
         bar = "#" * filled + "-" * (bar_width - filled)
         percent = 100 * index / total
+
+        reporter = _reporter if emit_events else None
+        if reporter is not None:
+            reporter({
+                "kind": "frames", "index": index, "total": total, "percent": percent,
+                "eta_seconds": eta_seconds if frames_per_second > 0 else None,
+                "eta_text": format_eta_long(eta_seconds) if frames_per_second > 0 else "calculating...",
+            })
 
         sys.stdout.write(
             f"\r  {label}: [{bar}] {index}/{total} frames ({percent:5.1f}%) "
@@ -102,3 +202,15 @@ def _format_seconds(seconds):
     if minutes:
         return f"{minutes}m {seconds}s"
     return f"{seconds}s"
+
+
+def format_eta_long(seconds):
+    """Human wording for a remaining time: 'about 8 h 10 min', 'about 12 min', 'under a minute'."""
+    seconds = int(seconds)
+    if seconds < 60:
+        return "under a minute"
+    minutes = round(seconds / 60)
+    hours, minutes = divmod(minutes, 60)
+    if hours:
+        return f"about {hours} h {minutes:02d} min"
+    return f"about {minutes} min"

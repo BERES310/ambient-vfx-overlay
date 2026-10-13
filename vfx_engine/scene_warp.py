@@ -4,7 +4,7 @@ scene_warp.py
 Shared GPU engine behind vegetation.py's canopy sway and cloud.py's sky
 drift: both are "wind moves a masked region of the photo's OWN pixels"
 image-space displacement warps (see shaders/region_warp.glsl and
-the design notes' Vegetation animation / Cloud motion sections), just
+the design notes Vegetation animation / Cloud motion sections), just
 with different masks and wind parameters - identical mechanism, so it
 lives here once instead of being duplicated in both callers, the same way
 particles.py is shared by particles_rain.py/particles_snow.py.
@@ -99,7 +99,7 @@ def render_region_warp(size, num_frames, base_image, region_rg_array,
         the instantaneous envelope (weather.gust_envelope's shape);
         "elastic" uses the damped-spring amplitude/lag values for callers wanting a
         lagged/springy response instead of one that snaps to the driving
-        signal instantly. Gap fix: this used to be an
+        signal instantly. the design notesix: this used to be an
         identity check against the two literal function objects
         weather.gust_envelope/weather.elastic_gust_envelope, which broke
         silently if a caller ever wrapped or partially-applied either
@@ -111,7 +111,8 @@ def render_region_warp(size, num_frames, base_image, region_rg_array,
         Literal value here plus a new branch in gust_shader_uniforms -
         not touching this identity-comparison logic at all.
     gap_flicker_strength/gap_flicker_scale: an optional fast, fine-scale
-        alpha flicker approximating light/gaps flickering through foliage - see shaders/region_warp.glsl's matching uniforms.
+        alpha flicker approximating light/gaps flickering through foliage
+ - see shaders/region_warp.glsl's matching uniforms.
         gap_flicker_strength=0.0 (default) = off, unchanged behavior.
     phase_offset_frames: shifts every theta-driven
         term (the main wind field, flutter, wave, gap-flicker, and the
@@ -124,8 +125,7 @@ def render_region_warp(size, num_frames, base_image, region_rg_array,
         read at two different phases instead of introducing any new noise
         layer.
     depth_array: optional numpy float32 array (height, width), 0.0 (far)
-        to 1.0 (near), from vfx_engine.depth.estimate_depth() - design notes
-        7.4 Gap B: when given, the traveling-wave term (wave_strength
+        to 1.0 (near), from vfx_engine.depth.estimate_depth() - when given, the traveling-wave term (wave_strength
         above) gets a per-pixel depth-driven frequency (see
         shaders/region_warp.glsl's matching depth_texture/has_depth
         uniforms and wave block) - far grass reads a tighter, slower wave,
@@ -231,9 +231,8 @@ def render_region_warp(size, num_frames, base_image, region_rg_array,
     context.enable(moderngl.BLEND)
     context.blend_func = moderngl.SRC_ALPHA, moderngl.ONE_MINUS_SRC_ALPHA
 
-    #: whether THIS caller wants the elastic/damped-spring
-    # response (vegetation.py's three sway functions all pass
-    # gust_kind="elastic" - see) or the plain instantaneous
+    # whether THIS caller wants the elastic/damped-spring
+    # response or the plain instantaneous
     # envelope (cloud.py/water.py's default) - an explicit tag the caller
     # sets, not an identity check against a specific function object (see
     # this function's gust_kind docstring for why), used to pick which

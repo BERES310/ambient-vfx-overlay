@@ -1,14 +1,14 @@
 """
 presets.py
 
-"a named preset library, once the config surface is
+the design notes Part 20.3: "a named preset library, once the config surface is
 this large." With 20+ Parts' worth of tunable parameters now in
 config.py, a small library of named starting presets ("storm," "gentle
 snowfall," "misty dawn") bundling sensible combinations of the many
 individual knobs is meaningfully more usable than starting every photo
 from a blank slate of 80+ raw values.
 
-The design notes's own write-up frames this as tying "into [Part 12]'s
+the design notes own write-up frames this as tying "into [Part 12]'s
 slider-based tuning workflow as a starting point" - Part 12's GUI itself
 doesn't exist yet, so this intentionally does NOT build one; what it
 builds is the part that doesn't depend on a GUI existing first: a plain

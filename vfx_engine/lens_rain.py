@@ -1,7 +1,7 @@
 """
 lens_rain.py
 
-Design note #6: a NEW camera-lens artifact, genuinely
+the design notes "Fixes to consider" #6: a NEW camera-lens artifact, genuinely
 missing from the codebase before this - soft, out-of-focus water droplets
 sitting directly ON the camera lens itself, distinct from lens_dirt.py's
 static dust/grime film and distinct from particles_rain.py's IN-SCENE
@@ -20,9 +20,17 @@ short loop - they sit where they landed, refracting/blurring whatever is
 behind them, with only the faintest life (a slow surface-tension jiggle,
 a specular glint that shifts slightly) to keep a 20-30s loop from looking
 like one dead-static sticker. So exactly like lens_dirt.py's own
-docstring reasoning, the expensive optical work (refraction sampling +
-heavy out-of-focus blur per droplet) is computed ONCE per render, not
-once per frame - only a small per-frame wobble/pulse animates on top.
+docstring reasoning, the expensive optical GEOMETRY (refraction sample
+coordinates, ellipse alpha, meniscus rim - see _compute_droplet_geometry)
+is computed ONCE per render, not once per frame - only a small per-frame
+wobble/pulse animates on top. The one exception is the refracted CONTENT
+itself (_sample_patch_rgb): when the underlying scene is camera-drifting
+(render_lens_rain's base_image_frames param), that content is re-sampled
+fresh every frame from the frame's own drifted photo - the droplet's
+screen position stays fixed (it's stuck to the lens, not the scene), but
+what it optically shows of the scene behind it has to track the actual
+panned/zoomed framing, or it visibly desyncs into a stale, misregistered
+patch as the pan progresses.
 
 Each droplet is built from three layered pieces, all soft/blurred (a
 droplet this close to the lens is by definition miles outside the
@@ -32,7 +40,7 @@ here):
      droplet (real water is transparent and convex - it bends and
      compresses the background into itself like a tiny magnifying lens,
      it doesn't just sit there as a flat gray blob). See
-     `_sample_refracted_patch`.
+     `_compute_droplet_geometry`/`_sample_patch_rgb`.
   2. A darker meniscus ring near the droplet's true edge (real water beads
      bend light most sharply right at the edge where the surface curves
      away fastest, reading as a subtle dark rim) plus a soft ellipse alpha
@@ -105,7 +113,7 @@ def _bilinear_sample(image_array, xs, ys):
     Samples image_array (H, W, 3) float32 at fractional (xs, ys) pixel
     coordinates (same shape as each other), with edge-clamped bilinear
     interpolation. No scipy dependency (not installed in this project's
-    venv - see very_important_note.txt rule 1, nothing gets pulled in from
+    venv - see the design notes rule 1, nothing gets pulled in from
     outside vfx_overlay/) so this is done by hand: the 4 integer neighbor
     lookups plus a manual weighted blend, exactly what
     scipy.ndimage.map_coordinates(order=1) would do internally.
@@ -193,22 +201,29 @@ def _build_droplet_layout(size, seed, count, radius_range, elongation_range):
     return droplets
 
 
-def _sample_refracted_patch(image_array, cx, cy, rx, ry, rotation, magnification, blur_radius):
+def _compute_droplet_geometry(size, cx, cy, rx, ry, rotation, magnification, blur_radius):
     """
-    Returns (patch_rgb, alpha, rim_darken) for one droplet, each a
-    (patch_h, patch_w[, 3]) float32 array local to a bounding box padded
-    around the droplet (padded so the blur below doesn't darken/fade the
-    droplet's own edge against a hard patch boundary).
+    Returns the CONTENT-INDEPENDENT half of a droplet's optical bake: the
+    patch bounding box, per-pixel refraction sample coordinates (src_x,
+    src_y) that `_sample_patch_rgb` below will pull pixels from, and the
+    alpha/meniscus-rim fields - all pure functions of the droplet's own
+    geometry (position/radius/elongation/rotation/magnification), never of
+    which photo (or which camera-drifted FRAME of a photo) actually
+    supplies the refracted pixels.
 
-    patch_rgb: a refracted, heavily out-of-focus sample of `image_array`
-        as seen "through" this droplet - see the module docstring's #1.
-    alpha: 0.0-1.0 soft ellipse falloff (the droplet's own shape/opacity),
-        already blurred.
-    rim_darken: 0.0-1.0, strongest right at the droplet's true edge (the
-        meniscus ring, module docstring's #2), 0 at the center and outside
-        the droplet entirely.
+    Split out from what used to be a single `_sample_refracted_patch` so
+    that a camera-drift-aware render (see render_lens_rain's
+    base_image_frames param) can re-run just the content-dependent half
+    (`_sample_patch_rgb`) fresh every frame, against that frame's own
+    drifted photo, WITHOUT redoing this geometry - a droplet's position/
+    shape on the lens itself never changes frame to frame, so recomputing
+    it every frame would just be redundant work reproducing the exact same
+    numbers.
+
+    Returns None when the droplet's padded footprint falls entirely off
+    the frame (nothing to render).
     """
-    height, width = image_array.shape[:2]
+    width, height = size
     pad = int(math.ceil(max(rx, ry) * 1.6 + blur_radius * 2.0 + 4))
     x0 = int(math.floor(cx - pad))
     x1 = int(math.ceil(cx + pad))
@@ -241,25 +256,12 @@ def _sample_refracted_patch(image_array, cx, cy, rx, ry, rotation, magnification
     # from farther away at the center (a wider background compressed into
     # a small area = magnified) while the rim samples almost undistorted.
     bulge = 1.0 - magnification * (1.0 - rad_clamped)
-    src_x = cx + local_x * cos_r - local_y * sin_r  # placeholder, replaced below
     # (local_x/local_y are axis-aligned in droplet space - rotate the
     # BULGE-SCALED offset back into image space to sample the right pixels)
     scaled_local_x = local_x * bulge
     scaled_local_y = local_y * bulge
     src_x = cx + scaled_local_x * cos_r - scaled_local_y * sin_r
     src_y = cy + scaled_local_x * sin_r + scaled_local_y * cos_r
-
-    sampled = _bilinear_sample(image_array, src_x, src_y)
-
-    # Blur the refracted sample - a droplet this close to the lens is far
-    # outside the camera's focus plane, so even the "image" it refracts
-    # reads as a soft, indistinct blur, never a sharp tiny upside-down
-    # scene (that level of optical accuracy would read as a gimmick, not
-    # realism, at the scale a rendered droplet appears on screen). Blurred
-    # directly in float32 (see _gaussian_blur_float's docstring) rather
-    # than through an 8-bit PIL round trip, which would quantize/
-    # posterize this small patch's steep gradients.
-    patch_rgb = _gaussian_blur_float(sampled, blur_radius)
 
     # Soft ellipse alpha - smoothstep from fully opaque (rad <= 0.82) down
     # to fully transparent (rad >= 1.0), then blurred again so even that
@@ -280,15 +282,38 @@ def _sample_refracted_patch(image_array, cx, cy, rx, ry, rotation, magnification
     rim_darken *= alpha  # never extends past the droplet's own visible edge
     rim_darken = _gaussian_blur_float(rim_darken, max(1.0, blur_radius * 0.35))
 
-    return dict(x0=patch_x0, y0=patch_y0, rgb=patch_rgb, alpha=alpha, rim=rim_darken,
-                local_x=local_x, local_y=local_y, rx=rx, ry=ry)
+    return dict(x0=patch_x0, y0=patch_y0, alpha=alpha, rim=rim_darken,
+                src_x=src_x, src_y=src_y, local_x=local_x, local_y=local_y, rx=rx, ry=ry)
+
+
+def _sample_patch_rgb(image_array, geom, blur_radius):
+    """
+    Returns the CONTENT-dependent half of a droplet's optical bake left out
+    of `_compute_droplet_geometry` above: a refracted, heavily out-of-focus
+    sample of `image_array` at that geometry's precomputed (src_x, src_y)
+    coordinates (module docstring's #1). Kept as its own tiny function so
+    it can be re-run against a fresh, camera-drift-warped image_array every
+    frame (see render_lens_rain's base_image_frames param) instead of
+    reusing whichever frame's photo content happened to be current when the
+    droplet was first baked - without redoing the (content-independent)
+    geometry work above every time too.
+
+    Blurred directly in float32 (see _gaussian_blur_float's docstring)
+    rather than through an 8-bit PIL round trip, which would quantize/
+    posterize this small patch's steep gradients. A droplet this close to
+    the lens is far outside the camera's focus plane, so even the "image"
+    it refracts reads as a soft, indistinct blur, never a sharp tiny
+    upside-down scene.
+    """
+    sampled = _bilinear_sample(image_array, geom["src_x"], geom["src_y"])
+    return _gaussian_blur_float(sampled, blur_radius)
 
 
 def render_lens_rain(size, num_frames, image, droplet_count=14, radius_range=(16, 46),
                       elongation_range=(1.05, 1.55), magnification=0.55, blur_radius_frac=0.012,
                       strength=0.85, rim_darken_strength=0.5, wobble_px=1.5, pulse_amount=0.25,
                       pulse_speed=1, highlight_strength=0.8, light_pos_uv=None, light_color=None,
-                      seed=None, start_frame=0):
+                      seed=None, start_frame=0, base_image_frames=None):
     """
     Generator - yields num_frames RGBA overlay frames of water droplets
     sitting on the lens itself (see module docstring). A camera artifact,
@@ -305,7 +330,7 @@ def render_lens_rain(size, num_frames, image, droplet_count=14, radius_range=(16
     elongation_range: (min, max) how much taller than wide each droplet's
         ellipse is (gravity-stretched teardrop, not a perfect circle).
     magnification: 0.0-1.0+, how strongly each droplet bulges/compresses
-        the background behind it (see _sample_refracted_patch) - 0
+        the background behind it (see _compute_droplet_geometry) - 0
         disables the lensing distortion entirely (still refracts, just
         with an undistorted 1:1 sample before blurring).
     blur_radius_frac: Gaussian blur radius for the refracted sample, as a
@@ -314,7 +339,7 @@ def render_lens_rain(size, num_frames, image, droplet_count=14, radius_range=(16
         differently on a 1080p vs 4K render.
     strength: 0.0-1.0+, overall opacity multiplier for every droplet.
     rim_darken_strength: 0.0-1.0+, how strongly the meniscus edge ring
-        darkens the droplet under it (see _sample_refracted_patch's rim).
+        darkens the droplet under it (see _compute_droplet_geometry's rim).
     wobble_px: >=0, amplitude (pixels) of each droplet's own slow,
         CLOSED-loop surface-tension jiggle (a tiny elliptical path in
         image space that returns exactly to its start every loop, the
@@ -338,17 +363,47 @@ def render_lens_rain(size, num_frames, image, droplet_count=14, radius_range=(16
         every render.
     start_frame: skips yielding frames 0..start_frame-1 (see
         render_checkpoint.py) - the expensive one-time optical bake above
-        (`baked`, built from `droplets`/`_sample_refracted_patch`) still
+        (`baked`, built from `droplets`/`_compute_droplet_geometry`) still
         runs unconditionally regardless of this value, and each frame's
         wobble/pulse/highlight below is a pure function of its own
         frame_i/num_frames plus that fixed bake, so resuming at
         start_frame reproduces bit-identical frames to an uninterrupted
         run from frame 0, just without paying the per-frame compositing
         cost of the frames already rendered. 0 (default) = old behavior.
+    base_image_frames: optional iterable yielding one per-frame drifted PIL
+        Image (e.g. vfx_engine.camera.apply_camera_drift), one per frame
+        starting at start_frame - same convention vegetation.py's sway
+        functions use. When CAMERA_DRIFT_ENABLED pans/zooms the scene
+        underneath this overlay, a droplet's own screen position must stay
+        FIXED (it's stuck to the lens/glass, not the scene - it pans WITH
+        the camera), but the patch of scene it optically refracts has to
+        keep tracking the actual panned/zoomed framing, or the droplet
+        shows a visibly stale, misregistered fragment of the pre-pan scene
+        that increasingly desyncs from the real background as the pan
+        progresses - exactly the dark "hole" artifact this parameter
+        fixes. When given, each droplet's `rgb` (but not its alpha/rim/
+        highlight geometry, which never depends on scene content - see
+        _compute_droplet_geometry/_sample_patch_rgb's docstrings) is
+        re-sampled fresh every frame from that frame's own drifted image,
+        at the droplet's unchanged (cx, cy) layout coordinates. None
+        (default) = old behavior: every droplet's content is baked once
+        from the single static `image`, unchanged for the whole render.
     """
     width, height = size
-    image_array = np.asarray(image.convert("RGB").resize(size, Image.BILINEAR), dtype="float32")
     blur_radius = max(1.0, blur_radius_frac * width)
+
+    animated = base_image_frames is not None
+    frames_iter = iter(base_image_frames) if animated else None
+
+    def _prepare_array(img):
+        return np.asarray(img.convert("RGB").resize(size, Image.BILINEAR), dtype="float32")
+
+    # `frames_iter`'s first item already corresponds to frame `start_frame`
+    # (the same contract camera.apply_camera_drift's own start_frame param
+    # and scene_warp.render_region_warp's priming next() call both follow)
+    # - so this primes frame start_frame's content once, and the per-frame
+    # loop below only advances the iterator again for frame_i > start_frame.
+    image_array = _prepare_array(next(frames_iter) if animated else image)
 
     droplets = _build_droplet_layout(size, seed, droplet_count, radius_range, elongation_range)
 
@@ -359,20 +414,24 @@ def render_lens_rain(size, num_frames, image, droplet_count=14, radius_range=(16
         light_x, light_y = None, None
     resolved_light_color = np.array(light_color if light_color is not None else (255, 248, 230), dtype="float32")
 
-    # The expensive optical work - refraction sampling + heavy blur - is
-    # computed ONCE here, not per frame (see module docstring: real pinned
-    # droplets don't change their own optics frame to frame). Only the
-    # highlight position (closed wobble) and its brightness (pulse) below
-    # vary per frame.
+    # The expensive optical GEOMETRY - refraction sample coordinates,
+    # ellipse alpha, meniscus rim - is computed ONCE here, not per frame
+    # (see module docstring: real pinned droplets don't change their own
+    # shape/position frame to frame, and none of this geometry depends on
+    # scene content anyway - see _compute_droplet_geometry's docstring).
+    # Only the highlight position (closed wobble) and its brightness
+    # (pulse) below vary per frame, plus - when `animated` - the sampled
+    # `rgb` content itself, re-pulled from each frame's own drifted image.
     baked = []
     for droplet in droplets:
-        patch = _sample_refracted_patch(
-            image_array, droplet["cx"], droplet["cy"], droplet["radius"],
+        geom = _compute_droplet_geometry(
+            size, droplet["cx"], droplet["cy"], droplet["radius"],
             droplet["radius"] * droplet["elongation"], droplet["rotation"],
             magnification, blur_radius,
         )
-        if patch is None:
+        if geom is None:
             continue
+        rgb = _sample_patch_rgb(image_array, geom, blur_radius)
 
         # Specular highlight: a small bright ellipse offset from the
         # droplet's center TOWARD the detected light source (real water
@@ -395,27 +454,39 @@ def render_lens_rain(size, num_frames, image, droplet_count=14, radius_range=(16
         highlight_cy = droplet["cy"] + to_light_y * highlight_offset
         highlight_radius = max(2.0, droplet["radius"] * 0.28)
 
-        py = np.arange(patch["y0"], patch["y0"] + patch["alpha"].shape[0])
-        px = np.arange(patch["x0"], patch["x0"] + patch["alpha"].shape[1])
+        py = np.arange(geom["y0"], geom["y0"] + geom["alpha"].shape[0])
+        px = np.arange(geom["x0"], geom["x0"] + geom["alpha"].shape[1])
         gx, gy = np.meshgrid(px, py)
         highlight_dist_sq = (gx - highlight_cx) ** 2 + (gy - highlight_cy) ** 2
         highlight_field = np.exp(-highlight_dist_sq / (2.0 * highlight_radius ** 2)).astype("float32")
-        highlight_field *= patch["alpha"]
+        highlight_field *= geom["alpha"]
 
-        baked.append(dict(patch=patch, droplet=droplet, highlight_field=highlight_field))
+        baked.append(dict(geom=geom, rgb=rgb, droplet=droplet, highlight_field=highlight_field))
 
     for frame_i in range(start_frame, num_frames):
         t = frame_i / max(num_frames, 1)
         theta = 2.0 * math.pi * t
         pulse = 1.0 + pulse_amount * math.sin(2.0 * math.pi * pulse_speed * t)
 
+        if animated and frame_i > start_frame:
+            # Re-derive this frame's own drifted scene, then re-sample
+            # every droplet's refracted content against IT (never the
+            # geometry, which stays exactly as baked above) - this is the
+            # actual fix: without it, a droplet keeps showing frame
+            # start_frame's content forever while the panning/zooming
+            # scene underneath it keeps moving, visibly desyncing from the
+            # real background as the loop progresses.
+            image_array = _prepare_array(next(frames_iter))
+            for entry in baked:
+                entry["rgb"] = _sample_patch_rgb(image_array, entry["geom"], blur_radius)
+
         rgb_accum = np.zeros((height, width, 3), dtype="float32")
         alpha_accum = np.zeros((height, width), dtype="float32")
 
         for entry in baked:
-            patch, droplet = entry["patch"], entry["droplet"]
-            ph, pw = patch["alpha"].shape
-            y0, x0 = patch["y0"], patch["x0"]
+            geom, droplet = entry["geom"], entry["droplet"]
+            ph, pw = geom["alpha"].shape
+            y0, x0 = geom["y0"], geom["x0"]
 
             # Closed-loop surface-tension wobble: a small ellipse in
             # image-space that returns exactly to (0, 0) at t=0 and t=1 -
@@ -430,9 +501,9 @@ def render_lens_rain(size, num_frames, image, droplet_count=14, radius_range=(16
             # to the nearest whole pixel - the patch is placed at its
             # unmoved integer (y0, x0) below, with the sub-pixel motion
             # baked into the resampled content itself.
-            base_rgb = _bilinear_shift(patch["rgb"], wobble_dx, wobble_dy)
-            base_alpha = _bilinear_shift(patch["alpha"], wobble_dx, wobble_dy) * strength * pulse
-            rim = _bilinear_shift(patch["rim"], wobble_dx, wobble_dy) * rim_darken_strength
+            base_rgb = _bilinear_shift(entry["rgb"], wobble_dx, wobble_dy)
+            base_alpha = _bilinear_shift(geom["alpha"], wobble_dx, wobble_dy) * strength * pulse
+            rim = _bilinear_shift(geom["rim"], wobble_dx, wobble_dy) * rim_darken_strength
             shaded_rgb = base_rgb * (1.0 - rim[..., None])
 
             highlight = _bilinear_shift(entry["highlight_field"], wobble_dx, wobble_dy) * highlight_strength * pulse

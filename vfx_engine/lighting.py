@@ -41,7 +41,7 @@ def estimate_ambient_light_color(base_image, illumination_result=None):
     saturated sky.
 
     Baseline heuristic (used whenever illumination_result is None, or
-    config.ENABLE_LEARNED_ILLUMINATION is off): the design notes's own
+    config.ENABLE_LEARNED_ILLUMINATION is off): the design notes own
     suggested approach - heavily downsample the photo (so individual
     objects/edges disappear and only the coarse overall color cast
     survives) and blur what's left, then take its mean color. Cheap,
@@ -50,7 +50,7 @@ def estimate_ambient_light_color(base_image, illumination_result=None):
     module/codebase (resolve_ambient_drift_scale, god_rays.
     detect_light_source).
 
-    (a) upgrade: when the caller has already computed
+    the design notes(a) upgrade: when the caller has already computed
     illumination.py's Marigold intrinsic-image-decomposition result for
     this photo (config.ENABLE_LEARNED_ILLUMINATION - pass it as
     `illumination_result` to avoid re-running that model here), its
@@ -66,7 +66,7 @@ def estimate_ambient_light_color(base_image, illumination_result=None):
 
     No new model is downloaded/introduced for this upgrade path - it
     reuses illumination.py's already-cached Marigold checkpoint
-    (config.MODELS_DIR-rooted, per very_important_note.txt rule 1) via
+ via
     whatever result the caller already computed for other purposes; this
     function itself never calls estimate_illumination.
 
@@ -252,7 +252,7 @@ def resolve_ambient_drift_scale(base_image, min_scale=0.5, max_scale=1.6):
     constant over a short loop) gets a SMALLER scale - otherwise the same
     fixed strength would show an unrealistically large swing on a bright
     neutral scene while under-shooting an already-warm dusk one (see this
-    function's call sites and the design notes's own writeup for the full
+    function's call sites and the design notes own writeup for the full
     reasoning).
 
     Brightness and warmth are each folded into their own 0.0-1.0 "more

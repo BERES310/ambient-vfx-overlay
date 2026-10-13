@@ -1,11 +1,11 @@
 """
 render_checkpoint.py
 
-Frame-level render checkpoint/resume. Directly answers notes_for_me.txt
+Frame-level render checkpoint/resume. Directly answers the design notes
 item 1: "there should be a cache for every render in case rendering gets
 interrupted so there would be no need to regenerate everything from
 scratch - cache should be deleted permanently after the program finished
-working." (the design notes "Genuinely still-open gaps" item 2.)
+working."
 
 This is distinct from vfx_engine/cache_store.py (per-computation caching
 of depth/segmentation/surface-normals results, keyed by image content) and
@@ -17,7 +17,7 @@ How it works: every GPU-effect generator in this codebase (fog, rain,
 snow, ground effects, god rays, lens dirt/rain, scene warp) computes its
 per-frame output as a pure function of (frame_i, num_frames, a handful of
 setup arrays derived once from a content-derived seed) - see the
-RNG-determinism audit in the design notes' Progress Log. That means
+RNG-determinism audit in the design notes Progress Log. That means
 re-running the SAME effect generator with the SAME seed/config and asking
 it to start its frame loop at `start_frame` instead of 0 produces
 bit-identical output for every frame from `start_frame` onward, without
@@ -142,9 +142,7 @@ def save_checkpoint(fingerprint, frames_written):
 def delete_checkpoint(fingerprint):
     """
     Permanently removes this fingerprint's checkpoint - must be called
-    once the render it belongs to finishes successfully (notes_for_me.txt:
-    "cache should be deleted permanently after the program finished
-    working"). A missing checkpoint (nothing to resume, or already
+    once the render it belongs to finishes successfully. A missing checkpoint (nothing to resume, or already
     deleted) is not an error.
     """
     path = checkpoint_path(fingerprint)

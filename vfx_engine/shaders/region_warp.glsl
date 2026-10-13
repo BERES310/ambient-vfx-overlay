@@ -70,7 +70,7 @@ uniform float gap_flicker_strength;   // 0.0 = off (default). >0.0 approximates 
                                        // modulating alpha more assertively than flutter's own subtle shimmer.
 uniform float gap_flicker_scale;      // spatial scale of the gap-flicker noise - finer than flutter_scale
 
-// see vfx_engine/weather.py's
+// the design notes (spatially-propagating gust) - see vfx_engine/weather.py's
 // gust_shader_uniforms() docstring for the full formula these implement;
 // gust_at() below evaluates it per-FRAGMENT using this fragment's own uv,
 // instead of the CPU pre-multiplying drift_strength/flutter_strength/
@@ -112,10 +112,10 @@ float value_noise(vec2 p) {
 }
 
 // Reflects x into [0,1] via a triangle-wave fold, instead of clamping -
-// fixes (clamping pins every sample beyond the edge to the
+// fixes the design notes (clamping pins every sample beyond the edge to the
 // SAME boundary pixel, which reads as a stretch/smear artifact once
 // several neighboring output pixels all land on that one clamped source
-// pixel) and doubles as.9's fix for cloud.py specifically
+// pixel) and doubles as the design notes fix for cloud.py specifically
 // (cloud drift and vegetation sway share this exact shader/mechanism):
 // a mirrored sample always has SOME content to reveal at the trailing
 // edge of the drift (a reflection of nearby real photo content) instead

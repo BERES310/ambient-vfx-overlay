@@ -78,8 +78,7 @@ def render_cloud_drift(size, num_frames, base_image, sky_mask, drift_strength=0.
         that could disagree with them; pass an explicit value only to
         deliberately make this sky layer drift differently.
     base_image_frames: optional iterable yielding one per-frame drifted
-        PIL Image (e.g. vfx_engine.camera.apply_camera_drift) - design notes
-        8.3: when given, THIS (not the static base_image) is what the
+        PIL Image (e.g. vfx_engine.camera.apply_camera_drift) - when given, THIS (not the static base_image) is what the
         sky drift actually resamples from, so it stays in registration
         with a simultaneously camera-drifting photo instead of always
         sampling the original, undrifted framing.
@@ -101,6 +100,7 @@ def render_cloud_drift(size, num_frames, base_image, sky_mask, drift_strength=0.
         start_frame), not from 0, so resuming mid-render doesn't discontinue
         the Gap A crossfade's sine phase at the resume boundary.
 
+    the design notes (clouds only ever translate, never evolve shape):
     a pure displacement warp can only push the photo's OWN pixels sideways
     along the wind field - it can never billow/stretch/dissipate a cloud
     puff, so at this effect's unusually large 26x drift multiplier a

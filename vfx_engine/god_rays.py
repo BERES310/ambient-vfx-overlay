@@ -3,7 +3,7 @@ god_rays.py
 
 Volumetric light shafts ("god rays" / crepuscular rays) radiating from the
 dominant light source detected in the photo, plus a simple camera lens
-flare - the design notes' Lighting section. Real light rarely stays
+flare - see the design notes Lighting section. Real light rarely stays
 perfectly diffuse when there's haze, fog, or falling rain/snow in the air;
 it visibly streaks toward the camera, and a bright enough source produces
 a lens flare (halo + a few faint "ghost" circles) as an artifact of the
@@ -213,7 +213,7 @@ def sample_light_color(base_image, light_pos, radius_frac=0.05, fallback=(255, 2
     actual photo - the closest available local proxy for "what color is
     the dominant light in this scene" without a dedicated illumination-
     color model (a genuinely harder, less standardized task than depth/
-    segmentation - see, an exploratory spike, not something
+    segmentation - the design notes, an exploratory spike, not something
     to build speculatively here).
 
     Used to tint wet-surface reflections, fog, and lens artifacts toward the photo's real light color
@@ -231,7 +231,7 @@ def sample_light_color(base_image, light_pos, radius_frac=0.05, fallback=(255, 2
     own separate blending logic. `illumination_result`, when given
     (config.ENABLE_LEARNED_ILLUMINATION), lets the ambient term prefer
     illumination.py's learned `shading` channel over a blurred-photo
-    heuristic - see estimate_ambient_light_color's.9(a)
+    heuristic - see estimate_ambient_light_color's the design notes(a)
     section. Imported lazily (not at module top) purely to keep this
     module's existing top-of-file import list (math, numpy, PIL)
     unchanged for any caller that doesn't need this - lighting.py has no
@@ -454,7 +454,7 @@ def build_lens_flare_texture(size, light_pos, strength=0.5, ghost_count=3, color
     varying distances, shrinking and dimming with distance from the
     source).
 
-    Fixes: previously every ghost (and the halo) shared
+    Fixes previously every ghost (and the halo) shared
     one identical flat `color` and was always a perfect circle, and ghost
     spacing/size followed one fixed, perfectly regular arithmetic
     progression (`t = 1.0 + i * 0.55`, `radius = halo_radius * (0.5 -
@@ -494,6 +494,8 @@ def build_lens_flare_texture(size, light_pos, strength=0.5, ghost_count=3, color
     alpha_draw = ImageDraw.Draw(alpha_canvas)
     color_canvas = Image.new("RGB", size, (0, 0, 0))
     color_draw = ImageDraw.Draw(color_canvas)
+    coverage_canvas = Image.new("L", size, 0)
+    coverage_draw = ImageDraw.Draw(coverage_canvas)
 
     halo_radius = min(width, height) * 0.09
 
@@ -546,11 +548,13 @@ def build_lens_flare_texture(size, light_pos, strength=0.5, ghost_count=3, color
             bbox = [ghost_x - ghost_radius, ghost_y - ghost_radius, ghost_x + ghost_radius, ghost_y + ghost_radius]
             alpha_draw.ellipse(bbox, fill=ghost_alpha)
             color_draw.ellipse(bbox, fill=ghost_color)
+            coverage_draw.ellipse(bbox, fill=255)
         else:
             rotation = float(rng.uniform(0.0, 360.0))
             points = _regular_polygon_points((ghost_x, ghost_y), ghost_radius, sides, rotation)
             alpha_draw.polygon(points, fill=ghost_alpha)
             color_draw.polygon(points, fill=ghost_color)
+            coverage_draw.polygon(points, fill=255)
 
     blur_radius = max(3, int(halo_radius * 0.35))
     alpha_blurred = alpha_canvas.filter(ImageFilter.GaussianBlur(radius=blur_radius))
@@ -558,17 +562,16 @@ def build_lens_flare_texture(size, light_pos, strength=0.5, ghost_count=3, color
 
     alpha_fraction = np.asarray(alpha_blurred, dtype="float32") / 255.0
     color_raw = np.asarray(color_blurred, dtype="float32") / 255.0
+    coverage_fraction = np.asarray(
+        coverage_canvas.filter(ImageFilter.GaussianBlur(radius=blur_radius)), dtype="float32") / 255.0
 
     # color_canvas was painted on a BLACK background, so blurring it mixes
-    # black into every soft/anti-aliased edge exactly like premultiplied
-    # alpha - without unpremultiplying here, every ghost's blurred rim
-    # would read as darkening toward black (an obviously wrong color
-    # fringe) instead of smoothly fading the correct tint color as alpha
-    # drops. Dividing back out by the (unstrengthened) alpha fraction
-    # recovers the true per-pixel tint; a small floor on the denominator
-    # avoids blowing up fully-transparent pixels, whose color doesn't
-    # matter anyway since alpha there is ~0.
-    color_array = np.clip(color_raw / np.clip(alpha_fraction, 0.02, None)[:, :, None], 0.0, 1.0)
+    # black into every soft edge like premultiplied color. Unpremultiply by
+    # the blurred full-coverage (255-filled) mask, NOT by alpha_fraction:
+    # ghost alpha is well below 1, so dividing by it would over-brighten
+    # every tint (clipping toward white). The floor avoids blowing up
+    # pixels with no ghost, whose color doesn't matter.
+    color_array = np.clip(color_raw / np.clip(coverage_fraction, 0.02, None)[:, :, None], 0.0, 1.0)
 
     # True radial-gradient halo: a continuous falloff
     # computed directly over the pixel grid, brightest at light_pos and
@@ -638,7 +641,7 @@ def build_starburst_texture(size, light_pos, num_spikes=6, spike_length_fraction
     # Spikes come in opposite pairs through the light source (a real
     # diffraction star's arms are symmetric across the center), evenly
     # spaced by default but each pair gets its own small angle jitter and
-    # the whole star gets one random base rotation, per.3's
+    # the whole star gets one random base rotation, the design notes
     # established "not perfectly regular" precedent applied here to a
     # different effect.
     base_rotation = rng.uniform(0.0, 2.0 * math.pi)
@@ -672,8 +675,7 @@ def build_starburst_texture(size, light_pos, num_spikes=6, spike_length_fraction
 def render_light_overlay(size, num_frames, texture, color=(255, 244, 214), pulse_amount=0.2, pulse_speed=1, start_frame=0):
     """
     Generator - yields num_frames RGBA overlay frames of a precomputed
-    texture (see build_ray_texture / build_lens_flare_texture / design notes
-    16.2's build_starburst_texture), tinted `color`, with a slow, cyclic
+    texture, tinted `color`, with a slow, cyclic
     intensity pulse (real light shafts through moving haze/particles
     aren't perfectly constant - they waver slightly, and a static,
     unmoving overlay for 30 seconds would look flat/fake). The pulse is
@@ -745,7 +747,7 @@ def render_lens_flare_overlay(size, num_frames, alpha_texture, color_texture, pu
     """
     Generator - yields num_frames RGBA overlay frames for lens flare
     specifically, using a per-pixel `color_texture` (see
-    build_lens_flare_texture's design notes-16.1 color_array return) instead of
+    build_lens_flare_texture's the design notes-16.1 color_array return) instead of
     render_light_overlay's single flat tint. render_light_overlay itself
     is left untouched and keeps serving god rays (build_ray_texture),
     which are a single-color light shaft with no per-ghost color variance

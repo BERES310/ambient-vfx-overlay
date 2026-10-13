@@ -8,7 +8,7 @@ in output/.
 All settings (which effects are enabled, how strong, which format to save
 the result in) are changed in config.py - not in this file.
 
-Running (from the project root):
+Running (from inside the vfx_overlay/ folder):
 
     python main.py
 """
@@ -52,7 +52,8 @@ def resolve_camera_composition_kwargs(image):
     bias for one photo, instead of computing it differently in different
     places.
 
-    zoom_pattern comes straight from config.CAMERA_ZOOM_PATTERN.
+    zoom_pattern comes straight from config.CAMERA_ZOOM_PATTERN
+.
 
     pan_bias_angle_deg is None (old content-agnostic behavior, unchanged)
     when config.CAMERA_COMPOSITION_AWARE_ENABLED is off or no image is
@@ -142,7 +143,8 @@ def resolve_base_frames(image, num_frames, depth_array=None, depth_confidence=No
 
 def resolve_postprocess_params(image, num_frames, size):
     """
-    Returns config.POSTPROCESS_PARAMS, with motion_blur's "vectors" key filled in from THIS render's own actual camera-
+    Returns config.POSTPROCESS_PARAMS, with motion_blur's "vectors" key
+ filled in from THIS render's own actual camera-
     drift path - reusing the exact same config.CAMERA_ZOOM_AMPLITUDE/
     CAMERA_PAN_AMPLITUDE/CAMERA_PAN_PHASE_DEG/resolve_camera_composition_
     kwargs values resolve_base_frames above already used to drift this
@@ -495,7 +497,7 @@ def resolve_particle_depth_realism(image, depth_array, num_frames=1, start_frame
 
     num_frames: also folds in a FRESH per-frame camera-drifted photo
     stream (base_image_frames) via _resolve_scene_warp_drift_kwargs -
-   .3's third named-but-previously-unfixed subsystem (the other
+    the design notes third named-but-previously-unfixed subsystem (the other
     two, vegetation/cloud, were fixed via that same helper) - so rain/snow
     atmosphere/backlight/refraction sampling stays in registration with a
     simultaneously camera-drifting photo too, not just vegetation sway and
@@ -592,7 +594,7 @@ def render_lens_flare_effects(size, num_frames, image, start_frame=0):
     read as genuinely fainter reflections, not identical copies.
 
     Uses render_lens_flare_overlay (not the shared render_light_overlay)
-    since gave build_lens_flare_texture a per-pixel color
+    since the design notes gave build_lens_flare_texture a per-pixel color
     texture alongside the alpha texture - per-ghost color variance that a
     single flat `color` tint can't express.
     """
@@ -662,10 +664,10 @@ def render_lens_dirt_effects(size, num_frames, image, illumination_result=None, 
     vfx_engine/lens_dirt.py) - grime/dust on the lens itself, a camera
     artifact like lens flare, layered on top of everything else. The grime
     PATTERN itself is independent of scene content (it's on the LENS, not
-    in the scene) but `image` is now also used for.1's light-
+    in the scene) but `image` is now also used for the design notes light-
     source coupling: the same detected light position/color that already
     feeds god rays, lens flare, and ground_fx.render_wet_sheen so grime scatters/glows near the light instead of only
-    ever darkening uniformly. `image` is also used for.2's
+    ever darkening uniformly. `image` is also used for the design notes
     brightness-dependent visibility - grime reads more strongly over
     bright regions of the photo (open sky) than dark ones (shadowed
     foliage), instead of applying uniformly regardless of what's behind
@@ -726,11 +728,22 @@ def render_lens_rain_effects(size, num_frames, image, illumination_result=None, 
     which this mirrors structurally), distinct from lens_dirt's static
     dust/grime and from particles_rain's sharp in-scene falling drops.
 
-    Design note #6: gated to heavy-rain intensity
+    the design notes "Fixes to consider" #6: gated to heavy-rain intensity
     specifically (config.LENS_RAIN_REQUIRED_INTENSITY, "storm" by default)
     - light/medium rain doesn't throw enough water at an exposed lens for
     this to be a realistic thing to see, so this only ever activates
     alongside RAIN_ENABLED at that intensity.
+
+    Camera-drift fix: each droplet's own screen position must stay fixed
+    (it's stuck to the lens, not the scene), but what it optically
+    refracts of the scene behind it has to keep tracking the actual
+    panned/zoomed framing whenever CAMERA_DRIFT_ENABLED is on, or it reads
+    as a dark, misregistered "hole" that desyncs from the real background
+    as the pan progresses. `_resolve_scene_warp_drift_kwargs` already
+    builds exactly the fresh per-frame drifted-photo generator this needs
+    (the same one vegetation/grass/palm sway consume) - lens_rain only
+    needs its `base_image_frames` key, not `camera_drift_params` (which
+    exists for drifting a full-frame mask/texture, not raw photo content).
     """
     if (image is None or not config.LENS_RAIN_ENABLED or not config.RAIN_ENABLED
             or config.RAIN_PARAMS.get("intensity") != config.LENS_RAIN_REQUIRED_INTENSITY):
@@ -739,6 +752,8 @@ def render_lens_rain_effects(size, num_frames, image, illumination_result=None, 
     light_pos_px = god_rays.detect_light_source(image)
     light_pos_uv = (light_pos_px[0] / size[0], light_pos_px[1] / size[1])
     light_color = god_rays.sample_light_color(image, light_pos_px, illumination_result=illumination_result)
+
+    drift_kwargs = _resolve_scene_warp_drift_kwargs(image, num_frames, start_frame=start_frame)
 
     return [lens_rain.render_lens_rain(
         size, num_frames, image,
@@ -755,6 +770,7 @@ def render_lens_rain_effects(size, num_frames, image, illumination_result=None, 
         highlight_strength=config.LENS_RAIN_HIGHLIGHT_STRENGTH,
         light_pos_uv=light_pos_uv, light_color=light_color,
         start_frame=start_frame,
+        base_image_frames=drift_kwargs.get("base_image_frames"),
     )]
 
 
@@ -874,8 +890,7 @@ def render_vegetation_effects(size, num_frames, image, segmentation, depth_array
     weighted sway (render_vegetation_sway); palm gets its own reduced-
     drift/rapid-flutter frond whip (render_palm_sway); flower is routed
     through the SAME low-stiffness traveling-wave motion grass uses
-    (render_grass_sway - design notes's own framing: "a flower head bobs...
-    more like a blade of grass than like a rigid branch").
+.
 
     Grass/field (segmentation's "ground_soft" category) still gets its
     OWN traveling-wave sway (render_grass_sway), separate from tree/
@@ -964,7 +979,7 @@ def render_cloud_effects(size, num_frames, image, segmentation, start_frame=0):
 def render_water_effects(size, num_frames, image, segmentation, start_frame=0):
     """
     Returns a list (0 or 1 items) of water-ripple frame streams (see
-    vfx_engine/water.py) - real image-space wind
+    vfx_engine/water.py, the design notes Part 20.1) - real image-space wind
     displacement of the photo's own water pixels, from AI segmentation.
     Same guards as render_vegetation_effects/render_cloud_effects above.
     """
@@ -1027,7 +1042,7 @@ def render_ground_effects(size, num_frames, depth_array, segmentation=None, imag
         ground_light_pos_uv = (light_pos[0] / size[0], light_pos[1] / size[1])
 
     # normals (surface_normals.py) + a pseudo light direction
-    # derived from the same ground_light_pos_uv above, plus (design notes
+    # derived from the same ground_light_pos_uv above, plus (the design notes
     # 9.9(a)) illumination.py's per-pixel albedo when available - feeds
     # render_wet_sheen's materials.shade_surface BRDF path below. Any of
     # these being unavailable (ENABLE_SURFACE_NORMALS off, no image, no
@@ -1042,7 +1057,7 @@ def render_ground_effects(size, num_frames, depth_array, segmentation=None, imag
             from vfx_engine import surface_normals
             wet_sheen_normals = surface_normals.estimate_surface_normals(image)
         except RuntimeError as exc:
-            print(f"")
+            print(f"  (surface normals unavailable, wet sheen falling back to flat highlight_color - {exc})")
         if ground_light_pos_uv is not None:
             from vfx_engine import materials
             wet_sheen_light_dir = materials.resolve_pseudo_light_direction(ground_light_pos_uv)
@@ -1362,7 +1377,7 @@ def process_image(image_path):
     # resolve_segmentation's docstring for exactly which effects consume it.
     segmentation = resolve_segmentation(image, depth_array, num_frames)
 
-    # illumination.py's Marigold intrinsic-image
+    # the design notes(a): illumination.py's Marigold intrinsic-image
     # decomposition (albedo/shading), computed ONCE per photo here (like
     # depth_array/segmentation above) and threaded through to whichever
     # effects want it - lighting.estimate_ambient_light_color (via
@@ -1373,9 +1388,7 @@ def process_image(image_path):
     # This was previously a "dormant, unintegrated exploratory spike" (see
     # lighting.py's own prior docstring wording) - this is its first real
     # integration. Wrapped in try/except: the Marigold checkpoint is
-    # already cached locally (models/huggingface/hub/models--prs-eth--
-    # marigold-iid-lighting-v1-1 - no new download needed, per design notes
-    # 9.9's own reuse-over-reinvent guidance), but estimate_illumination
+    # already cached locally, but estimate_illumination
     # still raises a plain RuntimeError on any other model-loading failure
     # (see that module's docstring) - a cosmetic lighting refinement
     # should never take down an entire render over that.
@@ -1385,7 +1398,7 @@ def process_image(image_path):
             from vfx_engine import illumination as illumination_module
             illumination_result = illumination_module.estimate_illumination(image)
         except RuntimeError as exc:
-            print(f"")
+            print(f"  (learned illumination unavailable, falling back to heuristics - {exc})")
 
     # Base-photo color-grade unification pass. Runs here, after segmentation
     # (so it can use the real AI sky mask when one was already computed for
@@ -1401,8 +1414,7 @@ def process_image(image_path):
     if config.WEATHER_GRADE_STYLE:
         image = weather_grade.apply_weather_grade(image, config.WEATHER_GRADE_STYLE, config.WEATHER_GRADE_STRENGTH)
 
-    # Frame-level render checkpoint/resume (closes notes_for_me.txt item 1
-    # and the design notes' "no mid-render per-frame resume" gap) - distinct
+    # Frame-level render checkpoint/resume - distinct
     # from resolve_resume_skip's WHOLE-PHOTO batch resume above: this
     # tracks progress WITHIN one photo's render, so an interruption partway
     # through a long animated render doesn't force redoing every frame
@@ -1518,8 +1530,7 @@ def process_image(image_path):
 
     # Now that save_result has fully consumed every frame without raising,
     # this render is genuinely complete - permanently delete its checkpoint
-    # and cached frames (notes_for_me.txt item 1: "cache should be deleted
-    # permanently after the program finished working"). Left as plain
+    # and cached frames. Left as plain
     # sequential statements (not inside a try/finally) so that an exception
     # anywhere above propagates out of process_image before reaching here,
     # leaving the checkpoint/frame cache intact for the next run to resume

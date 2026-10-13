@@ -56,7 +56,8 @@ def render_fog(size, num_frames, density=0.35, movement=0.3, color=(215, 220, 23
         it's genuinely thicker in the distance and thinner in the near
         foreground (real atmospheric haze), instead of a flat uniform
         density plastered over the whole frame regardless of what's near
-        or far. Falls back to uniform density when omitted. Also used to give near/far fog their own wisp scale and drift
+        or far. Falls back to uniform density when omitted. Also used
+ to give near/far fog their own wisp scale and drift
         speed - see blur.glsl's depth-parallax comment - instead of the
         entire noise field panning as one uniform sheet.
     depth_power: >0, how sharply fog concentrates into the distance when
@@ -78,8 +79,7 @@ def render_fog(size, num_frames, density=0.35, movement=0.3, color=(215, 220, 23
         depth. Real ground fog/mist settles low and thins with height; 0.0
         = no vertical stratification (old behavior, fog density depends
         only on depth/noise).
-    light_pos_uv/light_color/light_coupling_strength: -
-        fog brightens/tints toward light_color specifically AROUND
+    light_pos_uv/light_color/light_coupling_strength: fog brightens/tints toward light_color specifically AROUND
         light_pos_uv (normalized 0.0-1.0 screen position - see
         god_rays.detect_light_source/sample_light_color), instead of
         being one flat, position-agnostic tint. Real haze is brighter and

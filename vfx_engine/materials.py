@@ -30,7 +30,7 @@ import numpy as np
 # category -> {
 #   base_albedo_tint: (r, g, b) 0..1 - the material's own base color,
 #       independent of lighting. Overridden per-pixel by
-#       illumination.py's learned albedo channel when available (design notes
+#       illumination.py's learned albedo channel when available (the design notes
 #       9.9(a) - see resolve_albedo below); this flat tint is the
 #       fallback when that model is disabled/unavailable.
 #   roughness: 0.0 (mirror-smooth) - 1.0 (fully diffuse/matte). Drives
@@ -103,7 +103,7 @@ def get_material(category):
 
 def resolve_albedo(category, illumination_albedo=None):
     """
-    (a): returns the surface albedo to shade with - either
+    the design notes(a): returns the surface albedo to shade with - either
     illumination.py's own per-pixel Marigold-estimated albedo channel
     (a (H, W, 3) float32 array, 0..1 - see illumination.estimate_
     illumination's `albedo` key) when the caller supplies one, or
@@ -115,7 +115,7 @@ def resolve_albedo(category, illumination_albedo=None):
     leaf-color variation, moss) that a single category-wide color can't
     represent, so it overrides the category default wherever available -
     exactly the "PER-PIXEL override of the per-category flat albedo
-    tint" calls for. `illumination_albedo=None` (the default -
+    tint" the design notes calls for. `illumination_albedo=None` (the default -
     config.ENABLE_LEARNED_ILLUMINATION off, or the caller didn't compute
     it) keeps the old flat-tint behavior.
     """
@@ -181,14 +181,14 @@ def resolve_pseudo_light_direction(light_pos_uv, elevation=0.55):
 
 def shade_surface(normal, light_dir, category, light_color, illumination_albedo=None, view_dir=(0.0, 0.0, 1.0)):
     """
-    shared single-bounce BRDF - the ONE function every
+    the design notes shared single-bounce BRDF - the ONE function every
     material-aware shading effect in this pipeline should call, instead
     of each effect inventing its own ad hoc "how bright/what color"
     formula. Combines:
 
       - a Lambertian diffuse term (albedo * N.L), using either
         illumination.py's per-pixel learned albedo or MATERIAL_TABLE's
-        flat per-category tint (see resolve_albedo -.9(a)), and
+        flat per-category tint (see resolve_albedo - the design notes(a)), and
       - a Blinn-Phong specular lobe ((N.H)^shininess, H = normalize(view
         + light)) whose sharpness is derived from the category's
         roughness (roughness=0 -> tight, mirror-like highlight;
@@ -216,7 +216,7 @@ def shade_surface(normal, light_dir, category, light_color, illumination_albedo=
         light_color: (r, g, b) 0-255 sRGB tuple - see
             god_rays.sample_light_color/lighting.estimate_ambient_light_color.
         illumination_albedo: optional (H, W, 3) float32 array, 0..1 -
-           .9(a) per-pixel albedo override (see resolve_albedo).
+            the design notes(a) per-pixel albedo override (see resolve_albedo).
         view_dir: (3,) unit vector - fixed straight-on camera view by
             default (this pipeline never simulates a moving 3D camera
             relative to the scene; camera drift/dolly effects operate on

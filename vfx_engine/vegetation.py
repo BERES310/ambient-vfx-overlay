@@ -6,7 +6,7 @@ photo's OWN tree/plant/foliage pixels (a single photo has no 3D mesh to
 actually simulate wind-blown motion on), driven by the same curl-noise
 wind field family the particle system uses, so trees sway in the same
 gusts the rain/snow is already blowing through - see
-the design notes' Vegetation animation section and
+the design notes Vegetation animation section and
 vfx_engine/scene_warp.py for the shared GPU engine this and cloud.py's
 sky drift are both built on.
 
@@ -158,7 +158,7 @@ def _canopy_sway_weight(vegetation_mask, threshold=0.4):
     vegetation pixel's height within its own local mass of foliage - near
     0 at the base of a tree/bush (trunks/roots barely move in real wind),
     ramping toward 1 higher up within the same contiguous blob (canopies
-    sway the most) - the design notes' Vegetation animation
+    sway the most) - see the design notes Vegetation animation
     section: "movement increases toward the top of each tree mass ...
     rather than uniform per-pixel displacement."
 
@@ -353,11 +353,7 @@ def render_palm_sway(size, num_frames, base_image, palm_mask,
                       base_image_frames=None, camera_drift_params=None, start_frame=0):
     """
     Generator - like render_vegetation_sway, but for palm trees
-    (segmentation's "vegetation_palm" category - "a palm
-    frond moves very differently in wind than an oak canopy" - fronds are
-    lightweight and flexible, whipping/fluttering rapidly around a crown
-    rather than a broad mass of leaves gusting turbulently together the
-    way a tree canopy does).
+.
 
     Shares the same trunk-at-bottom/crown-at-top height weighting a tree
     silhouette has (see _build_canopy_region_rg - a palm's own silhouette
@@ -374,7 +370,7 @@ def render_palm_sway(size, num_frames, base_image, palm_mask,
     structure.
 
     base_image_frames/camera_drift_params: see render_vegetation_sway's
-    matching params - identical mechanism, reused as-is.
+    matching params - identical the design notes mechanism, reused as-is.
     start_frame: render-checkpoint/resume support - see
         render_vegetation_sway's matching param for the full explanation;
         identical mechanism reused as-is.
@@ -428,12 +424,12 @@ def render_grass_sway(size, num_frames, base_image, grass_mask,
     Fixes the confirmed gap in grass has far LOWER stiffness
     than a tree canopy and should sway MORE readily to the same gust, not
     less. Investigating the actual current code turned up something more
-    fundamental than the design notes's own framing, worth flagging: grass was
+    fundamental than the design notes own framing, worth flagging: grass was
     never routed through _canopy_sway_weight's tree-tuned model AT ALL -
     segmentation.py classifies "grass"/"field" under its own "ground_soft"
     category, entirely separate from vegetation, and main.py's
     render_vegetation_effects only ever read the (then-single, now split
-    three ways -) vegetation mask. So grass previously
+    three ways - the design notes) vegetation mask. So grass previously
     received NO sway whatsoever, not merely an under-weighted one. The
     fix the design notes actually asked for - "give grass its own low-
     stiffness, higher-amplitude, traveling-wave motion instead of routing
@@ -447,9 +443,10 @@ def render_grass_sway(size, num_frames, base_image, grass_mask,
     plus a uniform (not height-graded) high amplitude across the whole
     mask, since real grass has no rigid trunk section the way a tree does.
 
-    Also reused directly for segmentation's "vegetation_flower" category: "a flower head
+    Also reused directly for segmentation's "vegetation_flower" category
+: "a flower head
     bobs on a flexible stem more like a blade of grass than like a rigid
-    branch" is the design notes's own framing, and this function's motion
+    branch" is the design notes own framing, and this function's motion
     model - uniform low-stiffness amplitude, no trunk-to-canopy height
     grading, a traveling wave rather than tree sway's in-place turbulence -
     already IS exactly that description, with nothing about its
@@ -464,8 +461,7 @@ def render_grass_sway(size, num_frames, base_image, grass_mask,
     camera_drift_params: optional dict - see
         render_vegetation_sway's matching param for the full explanation.
     depth_array: optional numpy float32 array (height, width), 0.0 (far)
-        to 1.0 (near), from vfx_engine.depth.estimate_depth() - design notes
-        7.4 Gap B: a field of grass often spans a real range of camera
+        to 1.0 (near), from vfx_engine.depth.estimate_depth() - a field of grass often spans a real range of camera
         distance within one mask (a lawn stretching from the foreground to
         a distant treeline), so without this the traveling wave's spacing/
         speed is identical everywhere in the mask regardless of how far

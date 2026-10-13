@@ -1,7 +1,7 @@
 """
 illumination.py
 
-learned illumination estimation - the design notes's own text
+learned illumination estimation - the design notes own text
 scopes this item as "an exploratory spike... before committing to a
 specific checkpoint", NOT a green-lit implementation the way items 44/46/48
 (depth.py's DEPTH_MODE = "marigold"/"metric", surface_normals.py) were. An
@@ -16,7 +16,7 @@ otherwise.
 
 This module exists anyway, because the user was shown that exact caveat and
 explicitly asked for it to be built despite it (see config.py's
-ENABLE_LEARNED_ILLUMINATION comment and the design notes's second item-49 entry).
+ENABLE_LEARNED_ILLUMINATION comment and the design notes second item-49 entry).
 It is dormant by default and its light-source-position/color outputs below
 are clearly documented as an unverified derived heuristic, not a validated
 fix for the four gaps the spike named (3.5 wet-sheen's hardcoded white

@@ -19,7 +19,7 @@ LIVE_WALLPAPERS_DIR = OUTPUT_DIR / "live_wallpapers"   # live_wallpaper.py saves
 CACHE_DIR = BASE_DIR / "cache"          # resumable per-photo computation cache (depth/segmentation results) - see vfx_engine/cache_store.py
 
 # ---------------------------------------------------------------------------
-# Named presets (see vfx_engine/presets.py) - set to one of
+# Named presets - set to one of
 # the names in presets.PRESETS (currently "storm", "gentle_snowfall",
 # "misty_dawn") to start this run from that preset's bundle of settings
 # instead of the raw individual values below. None (default) = ignore
@@ -83,9 +83,7 @@ VIDEO_CRF = 14        # lower = higher quality/bigger file; 14 is visually near-
 VIDEO_PRESET = "slow"   # slowest/best-compression x264 preset - fine since time isn't a constraint here
 # 8-bit (yuv420p) is the deliberate, explicit default for every render mode,
 # including live_wallpaper.py - not an oversight. 10-bit (yuv420p10le) would
-# reduce banding a bit further in gradient-heavy content (fog/haze, bloom,
-# sky - independent of the separate internal-pipeline-bit-depth question,
-#), but third-party wallpaper players/decoders (e.g. Wallpaper
+# reduce banding a bit further in gradient-heavy content, but third-party wallpaper players/decoders (e.g. Wallpaper
 # Engine) and some ffmpeg/hardware-decoder builds are 8-bit-only, so 10-bit
 # risks a file that won't play at all on the actual target use case. Change
 # to "yuv420p10le" only after confirming every intended playback target
@@ -99,9 +97,7 @@ VIDEO_PIXEL_FORMAT = "yuv420p"
 # photo at its original resolution.
 MAX_INPUT_DIMENSION = 3840
 
-# Spatial supersampling - the ENTIRE pipeline (every effect,
-# not just particles - the design notes' own preferred option, "ideally the
-# full composite") renders at this many times the final output resolution
+# Spatial supersampling - the ENTIRE pipeline renders at this many times the final output resolution
 # per axis (2 = 4x the pixels), then box-filter-downsamples back down once
 # at the very end (see main.py/color.downsample_linear). Rain streaks and
 # small snowflakes otherwise only have the shaders' own smoothstep edge-
@@ -175,9 +171,7 @@ BOKEH_FACTOR = 0.6
 # top of that existing size/opacity scaling, not instead of it - the two
 # are complementary (bigger discs from size scaling + an actual blur
 # kernel to soften them). RAIN_BOKEH_BLUR_BANDS controls how many discrete
-# full-frame blur passes are computed per output frame (a real added
-# render cost - profile against RAIN_PARAMS' motion_blur_samples, design notes
-# 2.1, before raising this); results between adjacent bands are
+# full-frame blur passes are computed per output frame; results between adjacent bands are
 # interpolated per-pixel by defocus amount, so a low band count still
 # reads as continuous, not a visibly stepped set of rings. Only affects
 # rain (per this item's own scope) - snow's depth-of-field is unchanged.
@@ -254,10 +248,7 @@ SEGMENTATION_ENABLED = True
 
 # --- Vegetation sway (see vfx_engine/vegetation.py) - image-space wind
 # displacement of the photo's OWN tree/plant/palm/flower/foliage pixels
-# (from SEGMENTATION_ENABLED's "vegetation_tree"/"vegetation_palm"/
-# "vegetation_flower" categories - split what used to be one
-# combined "vegetation" category into these three, each routed through
-# its own matching motion model), driven by the same curl-noise wind
+#, driven by the same curl-noise wind
 # field family the particle system uses. Trees/grass
 # staying completely static next to falling rain/snow is one of the most
 # obvious "this is a static photo with effects on it" tells - motion is
@@ -290,7 +281,7 @@ CLOUD_DRIFT_STRENGTH = 0.5        # 0.0-1.0+, overall drift amplitude
                                    # direction comes from WEATHER_WIND_DIRECTION_DEG below, not its own setting -
                                    # see the "Weather" section for why
 
-# --- Water ripple (see vfx_engine/water.py) -
+# --- Water ripple -
 # image-space wind displacement of the photo's OWN water pixels (from
 # SEGMENTATION_ENABLED's "water" category: lake/river/sea/pool). A body
 # of water sitting perfectly static for the whole loop while rain falls,
@@ -321,7 +312,7 @@ WATER_RIPPLE_STRENGTH = 0.5       # 0.0-1.0+, overall ripple amplitude - deliber
 # ---------------------------------------------------------------------------
 WEATHER_WIND_DIRECTION_DEG = 15.0   # degrees from horizontal (0 = due right, 90 = straight up) the prevailing wind blows
 
-# Design note #3: rain's droplet tilt (RAIN_PARAMS used to
+# the design notes "Fixes to consider" #3: rain's droplet tilt (RAIN_PARAMS used to
 # hardcode `angle=18` as an independent fixed value, disconnected from
 # WEATHER_WIND_DIRECTION_DEG above) is now computed by main.py's
 # resolve_rain_angle_deg() FROM the wind direction every other wind-driven
@@ -336,7 +327,7 @@ WEATHER_WIND_DIRECTION_DEG = 15.0   # degrees from horizontal (0 = due right, 90
 # whatever wind direction is actually configured, instead of coincidence.
 RAIN_WIND_ANGLE_MAX_DEG = 18.0
 
-# Design note #3's second half: for single-frame STATIC
+# the design notes "Fixes to consider" #3's second half: for single-frame STATIC
 # image output (OUTPUT_MODE = "png", num_frames == 1) there is no
 # accompanying scene motion at all to back up a strongly wind-tilted rain
 # streak - vegetation isn't swaying, clouds aren't drifting, water isn't
@@ -350,7 +341,7 @@ RAIN_WIND_ANGLE_MAX_DEG = 18.0
 # 1.0 = no reduction, 0.0 = perfectly vertical rain in static images.
 RAIN_STATIC_IMAGE_ANGLE_SCALE = 0.4
 
-# Design note #4's decision: static PNG output (OUTPUT_MODE
+# the design notes "Fixes to consider" #4's decision: static PNG output (OUTPUT_MODE
 # = "image"/"png"/etc, num_frames == 1) architecturally CANNOT show
 # wind-driven scene motion (render_vegetation_effects/render_cloud_effects/
 # render_water_effects in main.py all early-return [] when num_frames <= 1
@@ -390,7 +381,8 @@ WEATHER_GUST_STRENGTH = 0.35
 # would. Tuned so a 30s render reproduces the original (2, 3)-over-30s pacing.
 WEATHER_GUST_SECONDS_PER_CYCLE = (15.0, 10.0)
 
-# real wind gusts sweep across a
+# the design notes ("the gust is a single global scalar - no spatial
+# propagation across the frame"): real wind gusts sweep across a
 # landscape over real time, not everywhere at once - a value here > 0.0
 # makes the gust reach positions further downwind slightly LATER (phase-
 # delayed), instead of every pixel/particle feeling it at the exact same
@@ -457,7 +449,7 @@ MASK_FEATHER = 15   # blur of the mask edge in pixels, for a soft transition (0 
 #       restrict the mask to only that AI-detected region - e.g.
 #       MASK_MODE = "depth" + MASK_SEGMENTATION_CATEGORY = "sky" gives
 #       "depth occlusion, but only within the detected sky region," one
-#       of the design notes' own named examples. None (default) = no
+#       of the design notes own named examples. None (default) = no
 #       segmentation-based restriction.
 #   MASK_MANUAL_CORRECTION: when True, ALSO restrict the mask by a
 #       separate hand-drawn correction layer (masks/{photo}_correction.png,
@@ -466,7 +458,7 @@ MASK_FEATHER = 15   # blur of the mask edge in pixels, for a soft transition (0 
 #       own filename) - e.g. MASK_MODE = "depth" + MASK_MANUAL_CORRECTION
 #       = True gives "depth occlusion, with a hand-painted correction
 #       layered on top to fix a spot the automatic depth mask got
-#       wrong," the design notes' other named example. False (default) = no
+#       wrong," the design notes other named example. False (default) = no
 #       manual correction layer.
 MASK_SEGMENTATION_CATEGORY = None
 MASK_MANUAL_CORRECTION = False
@@ -484,11 +476,23 @@ MASK_MANUAL_CORRECTION = False
 THRESHOLD_MODE = "bright"   # "bright" = only bright pixels, "dark" = only dark pixels
 THRESHOLD_VALUE = 180       # brightness threshold, 0-255
 
-# only used when MASK_MODE = "depth" - see vfx_engine/depth.py. Pixels at or
-# above this percentile of estimated "nearness" (i.e. roughly the closest
+# only used when MASK_MODE = "depth" - see vfx_engine/mask.py's
+# _build_depth_mask/_depth_prominence. This is NOT a percentile of raw
+# depth ("nearness") - a photo's bottom rows are almost always nearer than
+# its top ones from ordinary camera perspective alone (the ground/floor
+# recedes into the distance), so thresholding on raw nearness treated that
+# entire perspective gradient as one giant "foreground occluder" and hid
+# rain/snow across most of the lower frame even where there was no actual
+# object there, on top of making the effect fade out right at the point it
+# should be visibly reaching the ground. Thresholded on PROMINENCE instead:
+# how much NEARER a pixel is than its own broad local surroundings, which
+# a real discrete occluder (a tree trunk, a railing, a person, a rooftop
+# edge) has and a smoothly receding ground/floor/water plane does not, even
+# though the ground plane is still "near" in raw absolute terms. Pixels at
+# or above this percentile of prominence (roughly the most-protruding
 # `100 - DEPTH_NEAR_PERCENTILE`% of the scene) are treated as foreground
 # occluders that the effect falls behind, instead of being painted over them.
-DEPTH_NEAR_PERCENTILE = 80
+DEPTH_NEAR_PERCENTILE = 90
 
 # --- Depth model variant ---
 # The depth-estimation model (vfx_engine/depth.py) normally outputs purely
@@ -556,8 +560,7 @@ DEPTH_METRIC_VARIANT = "outdoor"
 #
 # Uses diffusers.MarigoldNormalsPipeline (prs-eth/marigold-normals-v1-1) -
 # see vfx_engine/surface_normals.py's header comment for the verified API
-# details (source: https://huggingface.co/docs/diffusers/en/api/pipelines/
-# marigold) and this module's output contract (unit-length XYZ vectors in
+# details () and this module's output contract (unit-length XYZ vectors in
 # [-1, 1], screen-space camera coordinates, passed through unchanged since
 # there's no pre-existing consumer contract to match, unlike depth.py's
 # multi-mode remapping onto one shared 0.0-far/1.0-near convention).
@@ -589,8 +592,7 @@ ENABLE_SURFACE_NORMALS = True
 # See vfx_engine/illumination.py's header comment for the full research
 # spike this was built from and the important caveat it documents.
 #
-# UNLIKE ENABLE_SURFACE_NORMALS above (built on the design notes' own
-# unconditional recommendation), this item's own design notes text explicitly
+# UNLIKE ENABLE_SURFACE_NORMALS above, this item's own the design notes text explicitly
 # scopes it as "an exploratory spike ... before committing to a specific
 # checkpoint", not a green-lit implementation - the spike's own finding was
 # that this checkpoint's diffuse-shading output does NOT cleanly localize a
@@ -599,7 +601,7 @@ ENABLE_SURFACE_NORMALS = True
 # project's numeric/synthetic-only verification protocol cannot confirm on
 # real photos whether it usefully proxies that. It was built anyway, off by
 # default, at the user's explicit second confirmation after being shown
-# this exact caveat - the original design notes for
+# this exact caveat - see the design notes Progress Log entry for
 # item 49 for the full reasoning trail.
 #
 # False (default) - feature is fully implemented but dormant; nothing in
@@ -627,7 +629,7 @@ ENABLE_LEARNED_ILLUMINATION = True
 # ("only pursue once mask boundary precision specifically is the confirmed
 # bottleneck, not preemptively"). Built anyway at the user's own direct,
 # repeated request naming SAM segmentation specifically, overriding the
-# design notes' own "skip for now" framing - the design notes'
+# the design notes own "skip for now" framing - see the design notes
 # Progress Log entry for item 47 for the full reasoning trail.
 #
 # A genuine two-stage pipeline, NOT a swap of segmentation.py's existing
@@ -719,7 +721,7 @@ CAMERA_COMPOSITION_AWARE_ENABLED = True
 
 
 # ---------------------------------------------------------------------------
-# Design note #7 - base-photo color-grade unification pass
+# the design notes "Fixes to consider" #7 - base-photo color-grade unification pass
 # (see vfx_engine/color_grade.py). This pipeline has always only ADDED
 # effect layers on top of the base photo - nothing has ever corrected the
 # base photo's OWN lighting. A source photo with a warm sunset sky over a
@@ -823,7 +825,7 @@ LENS_DIRT_SPECK_THRESHOLD = 0.78   # 0.0-1.0, higher than the haze film's defaul
 LENS_DIRT_SPECK_EDGE_POWER = 0.6   # >0, much gentler edge bias than the haze film's default edge_power=2.4 - specks (dust motes, hairs) can land anywhere on a lens, not just the edges
 LENS_DIRT_SPECK_WEIGHT = 0.7       # >=0, how strongly the speck layer contributes once combined with the haze film
 
-# Design note #6: soft, out-of-focus water droplets sitting
+# the design notes "Fixes to consider" #6: soft, out-of-focus water droplets sitting
 # directly on the camera lens itself (see vfx_engine/lens_rain.py) - a
 # camera artifact distinct from LENS_DIRT_* above (static dust/grime film)
 # and distinct from RAIN_PARAMS below (sharp in-scene falling drops).
@@ -888,6 +890,16 @@ RAIN_PARAMS = dict(
     # streaks") - 3 samples across a 180-degree-shutter-equivalent window.
     motion_blur_samples=3,
     shutter_fraction=0.5,
+    # User-requested global fall-speed knob (2026-09-22): multiplies every
+    # intensity preset's speed_range (see _INTENSITY_PRESETS in
+    # vfx_engine/particles_rain.py) uniformly, independent of which
+    # intensity is chosen and independent of RAIN_NEAR_LAYER/RAIN_FAR_LAYER's
+    # own speed_scale (which further scales near vs far relative to each
+    # other, on top of this). 1.0 = old behavior, unscaled. Threads through
+    # automatically to both the single-pass and layered-rain code paths
+    # (see main.render_enabled_effects and main.render_layered_rain's
+    # `shared` dict) since render_rain() now accepts this same key.
+    speed_scale=1.0,
 )
 
 # split rain into two independently-tuned near/far depth
@@ -921,7 +933,7 @@ RAIN_FAR_LAYER = dict(
 )
 
 # --- Fog / smoke / steam ---
-# Design note #5: turned on so the pipeline's own
+# the design notes "Fixes to consider" #5: turned on so the pipeline's own
 # depth-aware, depth-smoothed fog (FOG_DEPTH_AWARE/FOG_DEPTH_SMOOTHING_PX
 # below) actively masks over and unifies whatever mist/haze is already
 # baked into a source photo instead of leaving that pre-existing, pipeline-untouched haze
@@ -1011,12 +1023,7 @@ LIGHTNING_PARAMS = dict(
 # meaning nothing on any render actually glowed or rolled off softly.
 # chromatic_aberration is left off for now - it has its own falloff-curve/
 # subpixel fixes still pending and isn't part
-# of this "free win" pass. motion_blur is left off by default (the
-# camera-driven directional streak - is subtle at this
-# pipeline's characteristically gentle drift amplitudes, and rain/snow's
-# OWN motion already has its own correct, dedicated fast-motion blur - see
-# particles.py's motion_blur_samples/shutter_fraction, wired through
-# RAIN_PARAMS/SNOW_PARAMS below); turn it on here (see
+# of this "free win" pass. motion_blur is left off by default; turn it on here (see
 # vfx_engine/postprocess.py's _apply_motion_blur and main.py's
 # resolve_postprocess_params, which supplies the per-frame "vectors" this
 # stage needs from the render's own actual camera path) if a more
@@ -1046,12 +1053,18 @@ POSTPROCESS_PARAMS = dict(
 # ---------------------------------------------------------------------------
 LIVE_WALLPAPER_DURATION_SECONDS = 30   # length of the exported loop
 LIVE_WALLPAPER_CROSSFADE_SECONDS = 1.5   # how much of the tail is blended into the head to hide the loop seam - see vfx_engine/loop.py
-# CRF-driven (not a hard bitrate cap -): the old fixed 8Mbps
+# CRF-driven: the old fixed 8Mbps
 # target was a modest cap for what can be a 4K 30-second loop. Since the
 # expensive GPU render is only ever consumed once (into a lossless FFV1
 # intermediate - see save_mp4_two_pass), there's no reason not to let the
 # final encode use as many bits as CRF 14/veryslow actually wants.
 LIVE_WALLPAPER_CRF = 14
+
+# Longest side (px) of the live-wallpaper video. None = the photo's own size.
+# A smaller value renders proportionally faster (the GUI's Draft / Balanced /
+# High quality choices set this); photos already smaller than the cap are
+# never scaled up.
+LIVE_WALLPAPER_MAX_DIMENSION = None
 
 # True = also open a window that plays the exported loop live, right after
 # exporting it, so you can preview it without leaving the program.

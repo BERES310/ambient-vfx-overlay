@@ -214,7 +214,7 @@ def _build_control_panel(root, canvas, state, on_rerender, on_fast_preview, disp
         try:
             result = on_rerender(overrides)
         except Exception as exc:  # surface pipeline errors instead of freezing the panel
-            root.after(0, lambda: rerender_failed(exc))
+            root.after(0, lambda error=exc: rerender_failed(error))
             return
         root.after(0, lambda: rerender_done(result))
 
@@ -277,7 +277,7 @@ def _add_fast_preview_controls(root, canvas, state, on_fast_preview, display_siz
         try:
             result = on_fast_preview(overrides)
         except Exception as exc:  # surface pipeline errors instead of freezing the panel
-            root.after(0, lambda: fast_preview_failed(exc))
+            root.after(0, lambda error=exc: fast_preview_failed(error))
             return
         root.after(0, lambda: fast_preview_done(result))
 

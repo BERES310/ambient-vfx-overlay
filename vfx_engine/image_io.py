@@ -6,7 +6,6 @@ animated GIF, or an MP4 video file (choice in config.py, the OUTPUT_MODE
 setting).
 """
 
-import os
 import subprocess
 import threading
 
@@ -196,7 +195,8 @@ def save_mp4_two_pass(frames, out_path, crf=14):
     is deleted afterwards.
 
     Despite the name (kept for call-site compatibility), the final encode
-    is now a single CRF pass, not x264's classic two-pass ABR mode: the old version target-bitrate-capped this at a fairly
+    is now a single CRF pass, not x264's classic two-pass ABR mode
+: the old version target-bitrate-capped this at a fairly
     modest LIVE_WALLPAPER_BITRATE_MBPS=8 for what can be a 4K 30-second
     loop, and x264's two-pass ABR mode exists specifically to hit a
     *bitrate target* as precisely as possible - it has nothing to offer
@@ -243,6 +243,8 @@ def save_mp4_two_pass(frames, out_path, crf=14):
             first_frame, frame_iter,
         )
 
+        from vfx_engine.progress import report_stage
+        report_stage("encoding", "Encoding the final video")
         print(f"  [encode] Final CRF {crf}/{config.VIDEO_PRESET} pass from the lossless intermediate ...")
         _run_ffmpeg([
             ffmpeg_path, "-y", "-loglevel", "error",
@@ -288,6 +290,14 @@ def _run_ffmpeg_writing_frames(command, first_frame, frame_iter):
             process.stdin.write(np.asarray(frame).tobytes())
     except (BrokenPipeError, OSError):
         pass
+    except BaseException:
+        # Cancelled by the user (progress.RenderCancelled raised from the
+        # frame generator) or any other abort: don't leave ffmpeg and its
+        # stderr reader thread running behind us.
+        process.kill()
+        process.wait()
+        stderr_thread.join()
+        raise
 
     try:
         process.stdin.close()

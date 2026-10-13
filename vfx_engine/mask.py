@@ -101,20 +101,39 @@ def _local_value_scale(values, radius, band_min, band_max, band_multiplier=1.25)
 
 def _box_blur(array, radius):
     """A cheap, edge-safe box-ish blur via PIL's GaussianBlur, used only inside _local_value_scale's variance estimate - not exposed further."""
-    normalized = array - array.min()
-    peak = normalized.max()
-    if peak <= 1e-9:
-        return array.copy()
-    scaled = (normalized / peak * 255.0).astype("uint8")
-    blurred = Image.fromarray(scaled, mode="L").filter(ImageFilter.GaussianBlur(radius))
-    return np.asarray(blurred, dtype="float32") / 255.0 * peak + array.min()
+    # Full float32 precision (three separable box passes ~ Gaussian, the same
+    # approximation PIL uses). The old 8-bit-quantized PIL blur made
+    # mean-of-squares - mean^2 noisy, inflating the local band in bright
+    # flat regions (e.g. band ~19 instead of the 3 minimum on a value-250 area).
+    array = np.asarray(array, dtype="float64")
+    sigma = max(float(radius), 1e-6)
+    ideal = np.sqrt(12.0 * sigma * sigma / 3.0 + 1.0)
+    width = int(np.floor(ideal))
+    if width % 2 == 0:
+        width -= 1
+    width = max(width, 1)
+    half = width // 2
+    result = array
+    for axis in (0, 1):
+        for _ in range(3):
+            padded = np.pad(
+                result, [(half, half) if a == axis else (0, 0) for a in (0, 1)], mode="edge"
+            )
+            csum = np.cumsum(padded, axis=axis, dtype="float64")
+            zero_shape = list(csum.shape)
+            zero_shape[axis] = 1
+            csum = np.concatenate([np.zeros(zero_shape), csum], axis=axis)
+            length = result.shape[axis]
+            upper = np.take(csum, np.arange(width, width + length), axis=axis)
+            lower = np.take(csum, np.arange(0, length), axis=axis)
+            result = (upper - lower) / width
+    return result.astype("float32")
 
 
 def _soft_threshold_mask(values, threshold, invert, local_radius, band_min, band_max):
     """
     Returns a (height, width) float32 0.0-1.0 soft mask array directly
-    from a continuous `values` field and a scalar `threshold` - design notes
-    10.1's replacement for "hard np.where cutoff, then blur afterward".
+    from a continuous `values` field and a scalar `threshold` - the design notes replacement for "hard np.where cutoff, then blur afterward".
     Builds a per-pixel smoothstep transition band around the threshold,
     sized per-pixel by _local_value_scale (see above), instead of a
     single hard yes/no decision softened by one fixed-radius blur applied
@@ -337,6 +356,20 @@ _DEPTH_LOCAL_RADIUS = 8
 _DEPTH_BAND_MIN = 0.01
 _DEPTH_BAND_MAX = 0.15
 
+# _depth_prominence's broad baseline-blur radius, as a fraction of the
+# image's larger dimension - see that function's docstring for why raw
+# depth alone can't tell "near because it's a real foreground object" from
+# "near because it's the ground plane receding toward the bottom of the
+# frame under ordinary perspective." Wide enough to average away that
+# perspective gradient (and a large gently-sloped surface like a lawn or a
+# lake) but still narrow enough that a real foreground object - a tree
+# trunk, a person, a railing, a rooftop edge - stands out sharply against
+# it rather than getting smoothed away itself. Tuned empirically against
+# both project photos (a dense forest-canopy aerial view with no near
+# object at all, and a lake/castle scene with real near stonework) - see
+# the design notes Progress Log for the verification renders.
+_DEPTH_PROMINENCE_RADIUS_FRACTION = 0.08
+
 
 def _build_threshold_mask(image):
     """
@@ -360,17 +393,50 @@ def _build_threshold_mask(image):
     )
 
 
+def _depth_prominence(depth_array):
+    """
+    Turns a raw depth field into a PROMINENCE field: how much nearer each
+    pixel is than its own broad local surroundings (see
+    _DEPTH_PROMINENCE_RADIUS_FRACTION's comment for the full reasoning).
+
+    Raw depth alone can't distinguish a real foreground occluder from
+    ordinary camera perspective: in almost any photo, the bottom rows are
+    simply nearer than the top rows because the ground/floor/water plane
+    recedes into the distance as it rises toward the horizon - that's true
+    whether or not there's an actual solid object anywhere near the
+    camera. Thresholding on raw "nearness" (the old behavior) therefore
+    always caught most of the lower frame regardless of content, hiding
+    rain/snow across the bottom of the image and making it fade out right
+    where it should be visibly reaching the ground, instead of only
+    hiding it behind genuine near objects (a tree, a railing, a person).
+
+    Subtracting a wide local blur of the depth field cancels out that
+    smooth perspective gradient (and any other large, gently-sloped
+    surface) while leaving a real discrete near object's sharp depth
+    discontinuity against its background intact - a tree trunk or a
+    person still stands out as strongly "nearer than its surroundings"
+    after this subtraction; the ground plane, having no such local
+    discontinuity, mostly cancels down to near zero even where its raw
+    depth value is high.
+    """
+    radius = max(depth_array.shape) * _DEPTH_PROMINENCE_RADIUS_FRACTION
+    baseline = _box_blur(depth_array, radius)
+    return depth_array - baseline
+
+
 def _build_depth_mask(image, depth_array=None):
     """
     Builds a mask from the photo's estimated scene depth (see
     vfx_engine/depth.py): pixels at or above config.DEPTH_NEAR_PERCENTILE
-    of estimated "nearness" are treated as foreground occluders (mask
-    near 0.0, effect hidden), everything else stays visible (mask near
-    1.0) - now a soft, per-pixel-local-band smoothstep
-    transition around that threshold (see _soft_threshold_mask), not a
-    hard np.where cutoff blurred afterward by build_mask. Imports
-    vfx_engine.depth lazily - it pulls in torch/transformers, which is
-    only worth loading when depth masking is actually used.
+    of estimated PROMINENCE (see _depth_prominence - not raw "nearness",
+    see that function's docstring for why) are treated as foreground
+    occluders (mask near 0.0, effect hidden), everything else stays
+    visible (mask near 1.0) - still a soft, per-pixel-local-
+    band smoothstep transition around that threshold (see
+    _soft_threshold_mask), not a hard np.where cutoff blurred afterward by
+    build_mask. Imports vfx_engine.depth lazily - it pulls in
+    torch/transformers, which is only worth loading when depth masking is
+    actually used.
 
     depth_array: reuses a precomputed depth map when given, instead of
         running depth estimation again - see build_mask's docstring.
@@ -379,9 +445,10 @@ def _build_depth_mask(image, depth_array=None):
         from vfx_engine import depth
         depth_array = depth.estimate_depth(image)
 
-    threshold = np.percentile(depth_array, config.DEPTH_NEAR_PERCENTILE)
+    prominence = _depth_prominence(depth_array)
+    threshold = np.percentile(prominence, config.DEPTH_NEAR_PERCENTILE)
     return _soft_threshold_mask(
-        depth_array, threshold, True,
+        prominence, threshold, True,
         _DEPTH_LOCAL_RADIUS, _DEPTH_BAND_MIN, _DEPTH_BAND_MAX,
     )
 
@@ -392,30 +459,33 @@ def _build_depth_mask_frame_stream(depth_frames):
     param. Yields one 0.0-1.0 numpy mask array per frame, built from that
     frame's own already camera-drift-resampled depth array.
 
-    The near/far THRESHOLD itself is computed once, from the first frame
-    (frame 0's, i.e. the original undrifted framing's, depth distribution)
-    and reused for every subsequent frame, rather than recomputed per
-    frame from each frame's own (drifted) depth distribution - what counts
-    as "the near foreground" is a property of the SCENE, not of which
-    fraction of it happens to be in frame at a given moment, so a fixed
-    threshold is both more correct and avoids the mask's occlusion cutoff
-    subtly jittering frame to frame as the camera pans - only the mask's
-    ALIGNMENT should track the drift, not its criteria.
+    The near/far THRESHOLD itself is computed once, from the first frame's
+    PROMINENCE distribution (frame 0's, i.e. the original undrifted
+    framing's - see _depth_prominence for what prominence means and why
+    _build_depth_mask uses it instead of raw depth) and reused for every
+    subsequent frame, rather than recomputed per frame from each frame's
+    own (drifted) prominence distribution - what counts as "the near
+    foreground" is a property of the SCENE, not of which fraction of it
+    happens to be in frame at a given moment, so a fixed threshold is both
+    more correct and avoids the mask's occlusion cutoff subtly jittering
+    frame to frame as the camera pans - only the mask's ALIGNMENT should
+    track the drift, not its criteria.
     """
     threshold = None
     for depth_frame in depth_frames:
+        prominence = _depth_prominence(depth_frame)
         if threshold is None:
-            threshold = np.percentile(depth_frame, config.DEPTH_NEAR_PERCENTILE)
+            threshold = np.percentile(prominence, config.DEPTH_NEAR_PERCENTILE)
 
         # the same soft, locally-sized smoothstep transition
         # _build_depth_mask uses for the static case - the fixed threshold
         # from frame 0 is reused every frame (see this function's own
         # docstring above for why), but the LOCAL band itself is
         # recomputed fresh from each frame's own (camera-drift-resampled)
-        # depth field, since which pixels sit near a sharp depth edge
+        # prominence field, since which pixels sit near a sharp depth edge
         # shifts as the "camera" pans/zooms.
         yield _soft_threshold_mask(
-            depth_frame, threshold, True,
+            prominence, threshold, True,
             _DEPTH_LOCAL_RADIUS, _DEPTH_BAND_MIN, _DEPTH_BAND_MAX,
         )
 
@@ -456,7 +526,8 @@ def _get_manual_mask(image, image_path):
 
 def _get_manual_correction_mask(image, image_path):
     """
-    Returns a SEPARATE hand-drawn correction layer for the given photo - saved under
+    Returns a SEPARATE hand-drawn correction layer for the given photo
+ - saved under
     masks/{stem}_correction.png, a different file than _get_manual_mask's
     own masks/{stem}.png, so the two stay independent even when both are
     active at once (e.g. MASK_MODE = "depth" as the primary occlusion

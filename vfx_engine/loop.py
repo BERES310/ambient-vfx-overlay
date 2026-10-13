@@ -70,3 +70,60 @@ def make_seamless_loop(frames, total_frames, crossfade_frames):
     for index, tail_frame in enumerate(tail):
         alpha = (index + 1) / (len(tail) + 1)   # ramps 0 -> 1 across the crossfade
         yield tail_frame * (1.0 - alpha) + head[index] * alpha
+
+
+def make_seamless_loop_resumable(frames, total_frames, crossfade_frames, start_frame=0, head_loader=None):
+    """
+    make_seamless_loop for a render resumed from `start_frame` (see
+    render_checkpoint.py / frame_cache.py).
+
+    `frames` holds only the raw frames start_frame .. total_frames-1 (the
+    effect chain skips the ones already finished). The output frames
+    start_frame .. total_frames-1 come out exactly as make_seamless_loop
+    would have produced them, because every output frame before the tail is
+    just its own raw frame, and tail frame i only needs raw frame
+    (total - crossfade + i) plus head frame i.
+
+    The head frames the tail blends toward are the ones a resumed run no
+    longer holds in memory: `head_loader(i)` must return head frame i as a
+    linear-light array (the caller decodes it from the cached, already
+    encoded frame), used for every head index below start_frame. Head frames
+    at or beyond start_frame come from the live stream as usual. Yields
+    only output frames start_frame .. total_frames-1.
+    """
+    frame_iter = iter(frames)
+    remaining = total_frames - start_frame
+
+    if crossfade_frames > total_frames // 2:
+        print(
+            f"  (loop.py: crossfade_frames={crossfade_frames} exceeds half of "
+            f"total_frames={total_frames}; clamping to {total_frames // 2} so the "
+            f"head/middle/tail split stays valid)"
+        )
+        crossfade_frames = total_frames // 2
+
+    if crossfade_frames <= 0:
+        for _ in range(remaining):
+            yield next(frame_iter)
+        return
+
+    head = []
+    for index in range(crossfade_frames):
+        if index < start_frame:
+            if head_loader is None:
+                raise RuntimeError(f"resuming at frame {start_frame} needs head frame {index}, but no head_loader was given")
+            head.append(head_loader(index))
+        else:
+            head.append(next(frame_iter))
+    for index in range(start_frame, crossfade_frames):
+        yield head[index]
+
+    middle_first = max(crossfade_frames, start_frame)
+    for _ in range(total_frames - crossfade_frames - middle_first):
+        yield next(frame_iter)
+
+    tail_first = max(total_frames - crossfade_frames, start_frame)
+    tail_offset = tail_first - (total_frames - crossfade_frames)
+    for offset in range(tail_offset, crossfade_frames):
+        alpha = (offset + 1) / (crossfade_frames + 1)
+        yield next(frame_iter) * (1.0 - alpha) + head[offset] * alpha

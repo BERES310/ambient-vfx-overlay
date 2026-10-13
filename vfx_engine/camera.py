@@ -2,7 +2,7 @@
 camera.py
 
 Adds a slow, cyclic camera drift/zoom (Ken Burns effect) to the base
-photo before compositing effects on top - the design notes'
+photo before compositing effects on top - see the design notes
 "Camera motion" section. This is likely the single highest-impact "does
 this feel alive" upgrade outside of the particles themselves: a live
 wallpaper with dense rain/snow falling over a perfectly static, pixel-
@@ -14,11 +14,11 @@ does: the pan/zoom path is a closed ellipse in zoom/pan-space, parameterized
 purely by loop phase (theta = 2*pi*cycles*frame_i/num_frames, cycles a whole
 number - see _resolve_drift_cycles) using sin/cos terms - so frame
 `num_frames` reproduces frame 0's exact camera framing bit for bit, with no
-crossfade needed to hide a seam (see loop.py and the design notes' "Loop
-generation" section).
+crossfade needed to hide a seam.
 
 Vegetation sway, cloud drift, and particle (rain/snow) atmosphere/
-backlight/refraction sampling can ALSO be kept in sync with this drift via apply_camera_drift's own per-frame generator passed
+backlight/refraction sampling can ALSO be kept in sync with this drift
+ via apply_camera_drift's own per-frame generator passed
 through as their `base_image_frames` param (see main.py's
 _resolve_scene_warp_drift_kwargs, vfx_engine/scene_warp.py,
 vfx_engine/particles.py) - each re-uploads a fresh GPU texture per frame
@@ -202,7 +202,7 @@ def compute_global_drift_pixel_vectors(num_frames, width, height, zoom_amplitude
     step; the second-order radial displacement term that would vary with
     distance from frame center (from the zoom itself changing) is
     deliberately omitted as a documented simplification matching the
-    design notes's "spatially uniform... cheap" framing for this sub-case -
+    the design notes "spatially uniform... cheap" framing for this sub-case -
     this pipeline's characteristically subtle, single-digit-percent drift
     amplitudes keep that omitted term small.
 
@@ -253,7 +253,7 @@ def _working_size(width, height, zoom_amplitude, pan_amplitude, pan_bias_angle_d
     exactly this case). ceil() guarantees enough headroom always.
 
     pan_bias_angle_deg: see _camera_path/_effective_pan_amplitude -
-   .4's pan-ellipse rotation can push an individual axis's
+    the design notes pan-ellipse rotation can push an individual axis's
     excursion above pan_amplitude, so the margin uses the inflated
     effective value whenever a bias angle is actually in use. None
     (default) = pan_amplitude unchanged, identical sizing to before this
@@ -279,7 +279,7 @@ def _crop_box(zoom, pan_x_frac, pan_y_frac, width, height, working_w, working_h)
 
 def _pad_amount(width, height, zoom_amplitude, pan_amplitude, pan_bias_angle_deg=None):
     """
-    fix: how much thin, symmetric border padding the ORIGINAL
+    how much thin, symmetric border padding the ORIGINAL
     full-resolution image/array needs on each side so every possible
     pan/zoom crop box (see _crop_box) stays within bounds, WITHOUT
     pre-resampling the entire photo through an extra upscale pass first
@@ -309,8 +309,7 @@ def _pad_amount(width, height, zoom_amplitude, pan_amplitude, pan_bias_angle_deg
 def _pad_edge_mirror(array, pad_x, pad_y):
     """
     Pads a numpy array (2D scalar field like depth/mask, or 3D image data
-    like RGB/RGBA) by REFLECTING its own edge content outward - design notes
-    8.2: this synthesizes only the thin new border region needed for the
+    like RGB/RGBA) by REFLECTING its own edge content outward - this synthesizes only the thin new border region needed for the
     maximum pan offset, at true source resolution (no resampling
     involved at all, just index reflection), instead of resampling the
     ENTIRE image through an extra LANCZOS/BILINEAR upscale pass the way
@@ -411,7 +410,7 @@ def _weighted_percentile(values, weights, percentiles):
 
 def _compute_layer_depth_centers(depth_array, confidence=None):
     """
-    Gap A fix - returns this photo's own 15th/50th/85th depth
+    returns this photo's own 15th/50th/85th depth
     percentiles as the three layer centers, instead of always using the
     fixed _LAYER_DEPTH_CENTERS = (0.15, 0.5, 0.85), which silently assumes
     a roughly-uniform depth distribution. A photo that is almost entirely
@@ -458,7 +457,7 @@ def _layer_depth_weights(depth_array, centers=_LAYER_DEPTH_CENTERS):
     Returns a list of 3 (height, width) float32 arrays (far, mid, near) -
     a smooth PARTITION OF UNITY (they sum to exactly 1.0 at every pixel)
     built from Gaussian bumps centered on `centers`. Soft,
-    not hard-thresholded, layer membership -.1's multi-layer
+    not hard-thresholded, layer membership - the design notes multi-layer
     parallax needs each layer's content to fade smoothly into its
     neighbors' where they overlap in depth, not snap at a hard cutoff
     (which would show a visible seam the instant the layers start moving
@@ -482,7 +481,7 @@ def _layered_camera_drift_frames(base_image, depth_array, num_frames, zoom_ampli
 
     The core idea: split the photo into near/mid/far layers by depth,
     centered on this photo's own 15th/50th/85th depth percentiles (see
-    _compute_layer_depth_centers/_layer_depth_weights Gap A),
+    _compute_layer_depth_centers/_layer_depth_weights, the design notes),
     and let EACH layer's effective camera zoom/pan
     amplitude scale differently (_LAYER_AMPLITUDE_SCALES) - the near layer
     pans/zooms further per frame than the far layer, exactly like real
@@ -575,7 +574,8 @@ def apply_layered_camera_drift(base_image, depth_array, num_frames, zoom_amplitu
     docstring for the full mechanism. Same parameters/loop-closure
     guarantees as apply_camera_drift (the underlying _camera_path is
     identical, just scaled per layer). zoom_pattern/pan_bias_angle_deg:
-    see _camera_path. depth_confidence: optional - see _layered_camera_drift_frames's docstring; must
+    see _camera_path. depth_confidence: optional
+ - see _layered_camera_drift_frames's docstring; must
     match whatever apply_layered_camera_drift_to_depth is called with for
     this same render, if that is also being used.
     """
@@ -624,7 +624,10 @@ def apply_camera_drift_to_array(array, num_frames, zoom_amplitude=0.05, pan_ampl
     mask edges - precisely where accuracy matters most for a clean
     occlusion/effect boundary).
 
-    the old shared "working canvas"
+    the design notes (mentioned there as applying "far less" here, since a
+    scalar field has no fine photographic texture to lose - still fixed
+    for consistency with apply_camera_drift and to avoid maintaining two
+    diverging resampling strategies): the old shared "working canvas"
     double-resample is replaced the same way - pad the ORIGINAL array
     with a thin mirrored border (see _pad_amount/_pad_edge_mirror, no
     resampling involved) just wide enough for the maximum pan offset,
@@ -669,7 +672,11 @@ def apply_camera_drift_to_region_rg(region_rg_array, num_frames, zoom_amplitude=
     Generator - drifts a (height, width, 2) uint8 "region_rg" array (see
     scene_warp.render_region_warp's docstring - R=visibility/alpha mask,
     G=displacement-amplitude weight) through the SAME per-frame camera
-    path as the photo/depth. Each of the 2 channels is resampled independently via
+    path as the photo/depth (segmentation-derived masks had
+    NO camera-drift-aware counterpart at all, unlike depth, so
+    vegetation/cloud/ground masks stayed locked to the original,
+    undrifted framing even while the photo panned/zoomed underneath
+    them). Each of the 2 channels is resampled independently via
     apply_camera_drift_to_array, then re-stacked - yields one (height,
     width, 2) uint8 array per frame.
 

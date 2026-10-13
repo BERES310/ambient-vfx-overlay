@@ -11,7 +11,8 @@ pipeline:
     chromatic_aberration - a subtle red/blue channel shift near the frame edges,
                             like a real camera lens
     motion_blur         - a directional, velocity-scaled streak along the
-                            camera's own actual per-frame drift direction, so panning/zooming leaves a real
+                            camera's own actual per-frame drift direction
+, so panning/zooming leaves a real
                             directional trail instead of a flat, non-
                             directional whole-frame ghost
     tonemap             - a gentle filmic S-curve, so bright areas (bloom,
@@ -58,7 +59,7 @@ _apply_* functions) have any external callers outside this module (grep-
 confirmed), so it's safe for them to fully branch internally rather than
 needing a numpy-preserving fallback signature.
 
-Gap A fix: `_apply_motion_blur` used to be a flat, non-
+`_apply_motion_blur` used to be a flat, non-
 directional, non-velocity-aware whole-frame blend with the PREVIOUS
 frame (`frame * (1 - strength) + previous_frame * strength`) - this
 smeared the ENTIRE frame uniformly regardless of how fast (or whether at
@@ -78,7 +79,7 @@ docstring for why the scene-content (vegetation/cloud) case is out of
 scope here, and why fast independently-moving content (rain/snow) is
 correctly left to particles.py's own dedicated mechanism instead.
 
-Gap B fix: `_apply_grain` used to draw every pixel's noise
+`_apply_grain` used to draw every pixel's noise
 from the same flat standard deviation regardless of that pixel's own
 brightness - real sensor noise is dominated by photon shot noise, whose
 variance scales with the signal itself, plus a constant read-noise
@@ -298,8 +299,7 @@ def _apply_bloom(frame, threshold, strength):
 def _bilinear_sample_channel(channel_plane, x_coords, y_coords):
     """
     Samples `channel_plane` (a single (height, width) array) at fractional
-    (x_coords, y_coords) positions via bilinear interpolation - design notes
-    17.4: the old chromatic-aberration shift truncated to whole-pixel
+    (x_coords, y_coords) positions via bilinear interpolation - the old chromatic-aberration shift truncated to whole-pixel
     `int32` offsets and indexed directly (nearest-neighbor by
     construction), which reads as slightly stepped/aliased at the small
     pixel-shift scale this effect operates at. Interpolating between the
